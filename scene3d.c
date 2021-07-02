@@ -126,6 +126,10 @@ static void mouse_event(GLFWwindow *janela, double Xpos, double Ypos){ //Não co
     
 }
 
+void callback_name(int error_code, const char* description){
+    printf("%s\n", description);
+};
+
 /*
 static void mouse_event(GLFWwindow* window, int button, int action, int mods){
     printf("Pressionando tecla %d\n", button);
@@ -163,7 +167,7 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
 
 
     /*INICIALIZACAO E COMPILACAO DO GLSL*/
-    GLuint program = GLSLCompile3DLight();
+    GLuint program = GLSLCompile3D();
     /*FIM DA INICIALIZACAO E COMPILACAO DO GLSL*/
 
     
@@ -173,37 +177,22 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
 
     /*INICIALIZACAO DOS VERTICES*/
 
-    Obj3D *cubo = Obj3DFromFile("quadra/lojinha.obj");
-    cubo->texture_info.format = GL_RGBA;
 
     //Abaixo é a função de renderizar cenas
-    // Scene *scene = SceneFromFile("quadra/", "quadra.obj");
-    // printf("a\n");
-
-    // printf("%llu\n", sizeof(scene));
-    // DestroyScene(scene);
+    Scene *scene = SceneFromFile("quadra/", "quadra.obj");
 
 
-    //printf("a\n");
-                   
-
-    cubo->model_matrix = IdentityMatrix();
-    cubo->Reference_Matrix = CoordMatrix(cubo->center_of_mass);
 
 
+
+    Vec3 tri[scene->total_vert];
+    for(int j = 0; j < scene->total_vert; j++){    
+        tri[j] = scene->general_array[j];
+    } 
     
 
-    Vec3 tri[cubo->numb_vertices];
-    for(int j = 0; j < cubo->numb_vertices; j++){    
-        tri[j] = cubo->array[j];
-    }   
 
-    Vec2 text_vert[cubo->numb_vertices];
-    for(int j = 0; j < cubo->numb_vertices; j++){    
-        text_vert[j] = cubo->texture[j];
-    }  
-
-    printf("%d\n", cubo->numb_vertices);
+    printf("%d\n", scene->total_vert);
 
 
     GLfloat angle1 =  -2*M_PI/36000;
@@ -238,8 +227,8 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
 
 
     GLfloat up[3] = {0.0, 1.0, 0.0};
-    GLfloat center[3] = {0.0, 0.0, 0.0};
-    GLfloat eye[3] = {20.0, 20.0, 20.0};
+    GLfloat center[3] = {0.0, 5.0, 0.0};
+    GLfloat eye[3] = {10.0, 10.0, 10.0};
 
 
     vec4 a[4];
@@ -251,8 +240,6 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     near = 0.1;
 
     
-
-    
     glm_lookat(eye, center, up, a);
     glm_perspective(glm_rad(45.0), largura/altura, near, 100.0, perspec);
     
@@ -260,11 +247,15 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     glm_mat4_transpose(a);
     glm_mat4_transpose(perspec);
 
-    cubo->view_matrix = mat_from_glm(a);
-    cubo->projection_matrix = mat_from_glm(perspec);
+    
 
-    Translate(-cubo->center_of_mass.x,-cubo->center_of_mass.y, -cubo->center_of_mass.z, cubo->Reference_Matrix);
-    cubo->center_of_mass = CenterOfMass(cubo->array, cubo->numb_vertices);
+    for(int i = 0; i < scene->numb_objs; i++){
+        scene->array_objs[i].model_matrix      = IdentityMatrix();
+        scene->array_objs[i].view_matrix       = mat_from_glm(a);
+        scene->array_objs[i].projection_matrix = mat_from_glm(perspec);
+        scene->array_objs[i].Reference_Matrix  = CoordMatrix(scene->array_objs[i].center_of_mass);
+    }
+
     
 
     /*FIM DA INICIALIZACAO DOS VERTICES*/
@@ -288,29 +279,29 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, sizeof(tri[0]), (void*) 0); //Para 3D, substituir a segunda entrada por "3"
 
     
-    GLuint texture_id;
+    // GLuint texture_id;
 
     //"cup/textures/Base_color.png"
 
-    texture_id = 0;
-    cubo->texture_id = texture_id;
-    cubo->texture_info.TexturePath = "quadra/text1.png";
-    //cubo->texture_info.format = GL_RGB;
-    TextureFromFile(cubo->texture_info.TexturePath, cubo->texture_id, cubo); //A versão do SDL_image funcionando era a 2.0.1
-    //TextureFromFile("cup/textures/metallic.png", 1, cubo); //A versão do SDL_image funcionando era a 2.0.1
+    // texture_id = 0;
+    // cubo->texture_id = texture_id;
+    // cubo->texture_info.TexturePath = "quadra/text1.png";
+    // //cubo->texture_info.format = GL_RGB;
+    // TextureFromFile(cubo->texture_info.TexturePath, cubo->texture_id, cubo); //A versão do SDL_image funcionando era a 2.0.1
+    // //TextureFromFile("cup/textures/metallic.png", 1, cubo); //A versão do SDL_image funcionando era a 2.0.1
 
     /*CODIGO MORTO*///Nao sei pra que serve esses 
-    GLuint textures;
+    // GLuint textures;
     
-    glGenTextures(1, &textures); //Gera um id para a quantidade de texturas n informadas, armazendo-as num vetor de tamanho n
-    /*CODIGO MORTO*/
+    // glGenTextures(1, &textures); //Gera um id para a quantidade de texturas n informadas, armazendo-as num vetor de tamanho n
+    // /*CODIGO MORTO*/
     
-    glBindBuffer(GL_ARRAY_BUFFER, Buffers[1]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(text_vert), text_vert, GL_STATIC_DRAW);
-    GLint loc_texture = glGetAttribLocation(program, "texture_coord");
+    // glBindBuffer(GL_ARRAY_BUFFER, Buffers[1]);
+    // glBufferData(GL_ARRAY_BUFFER, sizeof(text_vert), text_vert, GL_STATIC_DRAW);
+    // GLint loc_texture = glGetAttribLocation(program, "texture_coord");
 
-    glEnableVertexAttribArray(loc_texture);
-    glVertexAttribPointer(loc_texture, 2, GL_FLOAT, GL_FALSE, sizeof(text_vert[0]), (void*) 0);
+    // glEnableVertexAttribArray(loc_texture);
+    // glVertexAttribPointer(loc_texture, 2, GL_FLOAT, GL_FALSE, sizeof(text_vert[0]), (void*) 0);
 
 
 
@@ -321,10 +312,9 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     glfwSetKeyCallback(janela, key_event);
 
 
+    glfwSetErrorCallback(callback_name);
     
     glfwSetCursorPosCallback(janela, mouse_event);
-
-
 
     glfwShowWindow(janela);
     glEnable(GL_DEPTH_TEST); //Adicionar esta linha pra 3D
@@ -358,18 +348,21 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
         //Translate(transl.x, transl.y, transl.z, cubo->view_matrix);
 
 
-
-        UpdateObj3D(cubo, model, view, proj, transl, angles, scale);
-
-        RenderObj3D(*cubo, color);
+        
+        //Renderizando a cena
+        for(int i = 0; i < scene->numb_objs; i++){
+            UpdateObj3D(&scene->array_objs[i], model, view, proj, transl, angles, scale, GLOBAL);
+            RenderObj3D(scene->array_objs[i], color);
+        }
         
 
 
         glfwSwapBuffers(janela);
+        glfwWaitEvents();
     }
     /*FIM LACO PRINCIPAL*/
 
-    DestroyObj3D(cubo);
+    DestroyScene(scene);
 
     glfwDestroyWindow(janela);
     glfwTerminate();

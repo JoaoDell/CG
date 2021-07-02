@@ -432,7 +432,9 @@ void DestroyObj3D(Obj3D *object){
     free(&object->starting_index);
     free(&object->color);
     free(&object->numb_vertices);
+    // printf("%f, %f, %f\n", object->center_of_mass.x, object->center_of_mass.y, object->center_of_mass.z);
     free(&object->center_of_mass);
+    // printf("d\n");
     free(&object->scale);
     free(&object->angle);
     free(object);
@@ -441,8 +443,10 @@ void DestroyObj3D(Obj3D *object){
 
 void DestroyScene(Scene *scene){
 
+
+        printf("%d\n", scene->numb_objs);
         for (int i = 0; i < scene->numb_objs; i++){
-            DestroyObj3D(scene->array_objs[i]);
+            DestroyObj3D(&scene->array_objs[i]);
         }
 
         free(scene->array_objs);
@@ -450,6 +454,9 @@ void DestroyScene(Scene *scene){
 
         free(scene->numb_vert);
         scene->numb_vert = NULL;
+
+        free(scene->starting_indices);
+        scene->starting_indices = NULL;
 
         free(scene->starting_indices);
         scene->starting_indices = NULL;
@@ -942,9 +949,11 @@ Obj3D *Obj3DFromFile(char *vertex_path){
             if(&out_vert[3*i + k] == NULL){
                 printf("pqp\n");
             }     
+
             out_vert[3*i + k] = verti[j];
         }
     }
+    // printf("b\n");
 
     Vec3 *out_norm;
     out_norm = (Vec3 *) malloc(3*numb_fac*sizeof(Vec3));
@@ -1018,7 +1027,222 @@ Obj3D *Obj3DFromFile(char *vertex_path){
     Obj->has_texture = 0;
 
 
-    printf("b\n");
+
+    return(Obj);
+}
+
+
+
+
+Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned int starting_texture, unsigned int starting_normals){
+
+    FILE *raw;
+    fopen_s(&raw, vertex_path, "r");
+
+    int size = 500;
+
+    unsigned int numb_vert = 0;
+    unsigned int numb_text = 0;
+    unsigned int numb_norm = 0;
+    unsigned int numb_fac = 0;
+    
+    
+    
+    Vec3 vert;
+    Vec3 normal;
+    Vec2 uv;
+    Triangle face;
+
+    while(1){ //loop para coletar o numero de vertices, texturas, normais e faces
+        
+        char line[size];
+        int check;
+
+
+        check = fscanf(raw, "%s\n", line);
+
+        
+        
+        
+        if(check == EOF) break;
+        
+
+        //printf("%s\n", line);
+
+        if(strcmp(line, "v") == 0){
+            numb_vert += 1;        
+        }
+        else if ( strcmp(line, "vt") == 0 ){ //Se for coordenada de textura
+            numb_text += 1;
+        }
+        else if ( strcmp(line, "vn" ) == 0 ){ //Se for coordenada de normal
+            numb_norm += 1;
+        }
+        else if ( strcmp(line, "f" ) == 0 ){ //Se for indice das faces
+            numb_fac += 1;
+        }
+
+    }
+
+
+    fclose(raw);
+
+    printf("%d %d %d %d\n", numb_vert, numb_text, numb_norm, numb_fac);
+    Vec3 verti[numb_vert];
+    unsigned int v = 0;
+    Vec2 text[numb_text];
+    unsigned int t = 0;
+    Vec3 norm[numb_norm];
+    unsigned int n = 0;
+
+    Triangle *fac = (Triangle *) malloc(numb_fac*sizeof(Triangle));
+    unsigned int f = 0;
+
+
+    
+    fopen_s(&raw, vertex_path, "r");
+
+
+    while(1){//loop para armazenar os vertices, texturas, normais e faces
+        char line[size];
+        char line2[size];
+        char line3[size];
+        
+
+
+        int check;
+        check = fscanf(raw, "%s\n", line);
+
+        fgets(line2, size, raw);
+        
+        
+        
+        if(check == EOF) break;
+        
+        
+
+        if(strcmp(line, "v") == 0){
+            sscanf(line2, "%f %f %f\n", &vert.x, &vert.y, &vert.z);
+            verti[v] = vert;
+            v++;          
+        }
+        else if ( strcmp(line, "vt") == 0 ){ //Se for coordenada de textura
+            sscanf(line2, "%f %f\n", &uv.x, &uv.y );
+            text[t] = uv;
+            t++;
+        }
+        else if ( strcmp(line, "vn" ) == 0 ){ //Se for coordenada de normal
+            sscanf(line2, "%f %f %f\n", &normal.x, &normal.y, &normal.z);
+            norm[n] = normal;
+ 
+        }
+        else if ( strcmp(line, "f" ) == 0 ){ //Se for indice das faces
+            sscanf(line2, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &face.tri[0], &face.tex[0], &face.nor[0],
+                                                          &face.tri[1], &face.tex[1], &face.nor[1], 
+                                                          &face.tri[2], &face.tex[2], &face.nor[2]);
+            fac[f] = face;
+            f++;
+        }
+    }
+
+
+    Vec3 *out_vert;
+    out_vert = (Vec3 *) malloc(3*numb_fac*sizeof(Vec3));
+    if(out_vert == NULL){
+        printf("Cant malloc out_vert!\n");
+        free(fac);
+        return NULL;
+    }
+
+    unsigned int j = 0;
+    for(unsigned int i = 0; i < numb_fac; i++){ 
+        for(int k = 0; k < 3 ; k++){  
+            j = fac[i].tri[k] -1 - starting_vertex;
+            if(&out_vert[3*i + k] == NULL){
+                printf("pqp\n");
+            }     
+            // printf("%d\n", j);
+            out_vert[3*i + k] = verti[j];
+        }
+    }
+    // printf("b\n");
+
+    Vec3 *out_norm;
+    out_norm = (Vec3 *) malloc(3*numb_fac*sizeof(Vec3));
+    if(out_norm == NULL){
+        printf("Cant malloc out_norm!\n");
+        free(fac);
+        free(out_vert);
+        return NULL;
+    }
+
+    j = 0;
+    for(unsigned int i = 0; i < numb_fac; i++){
+        for(int k = 0; k < 3 ; k++){
+            j = fac[i].nor[k] -1 - starting_normals;
+            out_norm[3*i + k] = norm[j];
+        }
+    }
+    
+    Vec2 *out_text;
+    out_text = (Vec2 *) malloc(3*numb_fac*sizeof(Vec2));
+    if(out_text == NULL){
+        printf("Cant malloc out_text!\n");
+        free(fac);
+        free(out_vert);
+        free(out_norm);
+        return NULL;
+    }
+
+    j = 0;
+    for(unsigned int i = 0; i < numb_fac; i++){
+        for(int k = 0; k < 3 ; k++){
+            j = fac[i].tex[k] - 1 - starting_texture;
+            out_text[3*i + k] = text[j];
+
+        }
+    }
+
+    free(fac);
+    fac = NULL;
+
+    fclose(raw);
+
+    Obj3D *Obj;
+    Obj = (Obj3D *) malloc(sizeof(Obj3D));
+    if(Obj == NULL){
+        printf("Could not malloc Obj\n");
+        free(out_vert);
+        free(out_norm);
+        free(out_text);
+        return NULL;    
+    }
+    
+    Obj->array   = out_vert;
+    Obj->normals = out_norm;
+    Obj->texture = out_text;
+
+    Obj->numb_vertices = 3*numb_fac;
+    Obj->center_of_mass = CenterOfMass(Obj->array, Obj->numb_vertices);
+
+    Obj->doc_vertex = numb_vert;
+    Obj->doc_normals = numb_norm;
+    Obj->doc_texture = numb_text;
+
+    Obj->projection_matrix = IdentityMatrix();
+    Obj->view_matrix       = IdentityMatrix();
+    Obj->model_matrix      = IdentityMatrix();
+    Obj->Reference_Matrix  = IdentityMatrix();
+
+    Obj->angle = 0.0;
+    Obj->color = DefineColor(255.0, 0.0, 0.0, 1.0);
+    Vec3 scale; scale.x = 1.0; scale.y = 1.0; scale.z = 1.0;
+
+    Obj->scale = scale;
+    Obj->starting_index = starting_vertex;
+    Obj->has_texture = 0;
+
+
 
     return(Obj);
 }
@@ -1035,9 +1259,6 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name){
     char vertex_path[size];
     strcpy(vertex_path, vertex_file);
     strcat(vertex_path, vertex_name);
-
-    // printf("%s\n", vertex_path);
-
 
 
     FILE *raw;
@@ -1093,7 +1314,6 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name){
 
         files[i] = copy;
         
-        // printf("%s\n", files[i]);
 
 
         FILE *file;
@@ -1130,8 +1350,7 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name){
                     if(iter == 0) iter++;
                     else break;
                 }
-
-                // fputs(lineaux, file);   
+  
                 fprintf(file, "%s", lineaux);           
                 
         }
@@ -1141,51 +1360,117 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name){
 
     fclose(raw);
    
-    // for(int i = 0; i < numb_objs; i++){
-    //     printf("%s\n", files[i]);
-    // }
 
     //Alocação de memória para a estrutura a ser retornada pela função
-    Scene *scene;
+    Scene *scene = (Scene *) malloc(sizeof(Scene));
 
-    scene->array_objs       = (Obj3D **) malloc(numb_objs*sizeof(Obj3D *));
-    scene->numb_objs        = *(int *) malloc(sizeof(int)); 
+
+    scene->array_objs       = (Obj3D *) malloc(numb_objs*sizeof(Obj3D));
     scene->numb_vert        = (int *) malloc(numb_objs*sizeof(int));
-    scene->starting_indices = (int *) malloc(numb_objs*sizeof(int));
+    scene->starting_indices = (unsigned int *) malloc(numb_objs*sizeof(unsigned int));
+
+    unsigned int vert = 0;
+    unsigned int tex  = 0;
+    unsigned int norm = 0;
+
+    unsigned int total_vert = 0;
+
+
 
     if(scene->array_objs == NULL){
         printf("Could no malloc array_objs!\n");
+        for (int i = 0; i < numb_objs; i++) remove(files[i]);
+        for (int i = 0; i < numb_objs; i++) free(files[i]);
+        free(scene);
+        free(files);
         return NULL;
     }
     if(scene->numb_vert == NULL){
         printf("Could no malloc numb_vert!\n");
-        free(&scene->numb_objs);
         free(scene->array_objs);
+        free(scene);
+        for (int i = 0; i < numb_objs; i++) remove(files[i]);
+        for (int i = 0; i < numb_objs; i++) free(files[i]);
+        free(files);
         return NULL;
     }
+
     if(scene->starting_indices == NULL){
         
         printf("Could no malloc starting_indices!\n");
-        free(&scene->numb_objs);
+        // free(&scene->numb_objs);
         free(scene->array_objs);
         free(scene->numb_vert);
+        free(scene);
+        for (int i = 0; i < numb_objs; i++) remove(files[i]);
+        for (int i = 0; i < numb_objs; i++) free(files[i]);
+        free(files);
         return NULL;
     }
 
-    // printf("a\n");
 
-    for (int j = 0; j < numb_objs; j++){
+    scene->array_objs[0] = *Objs3DFromFile(files[0], 0, 0, 0);
 
-        printf("%s\n", files[j]);   
+    vert += scene->array_objs[0].doc_vertex;
+    norm += scene->array_objs[0].doc_normals;
+    tex += scene->array_objs[0].doc_texture;
+
+    scene->numb_vert[0]         = scene->array_objs[0].numb_vertices;
+    scene->starting_indices[0]  = scene->array_objs[0].starting_index;
+
+    total_vert += scene->array_objs[0].numb_vertices;
+
+
+    for (int j = 1; j < numb_objs; j++){
+ 
 
         //Lê os objetos individualmente
-        scene->array_objs[j]        = Obj3DFromFile(files[j]);
-        scene->numb_vert[j]         = scene->array_objs[j]->numb_vertices;
-        scene->starting_indices[j]  = scene->array_objs[j]->starting_index;
+        scene->array_objs[j]        = *Objs3DFromFile(files[j], vert, tex, norm);
+                                                        
+
+        vert += scene->array_objs[j].doc_vertex;
+        norm += scene->array_objs[j].doc_normals;
+        tex += scene->array_objs[j].doc_texture;
+
+        if(&scene->array_objs[j] == NULL){
+            printf("Could no extract obj!\n");
+            free(scene->starting_indices);
+            free(scene->array_objs);
+            free(scene->numb_vert);
+            free(scene);
+            for (int i = 0; i < numb_objs; i++) remove(files[i]);
+            for (int i = 0; i < numb_objs; i++) free(files[i]);
+            free(files);
+            return NULL;
+        }
+
+
+        
+        scene->numb_vert[j]         = scene->array_objs[j].numb_vertices;
+        scene->starting_indices[j]  = total_vert;
+        scene->array_objs[j].starting_index = total_vert;
+
+
+        total_vert += scene->array_objs[j].numb_vertices;
 
     }
 
     scene->numb_objs = numb_objs;
+
+    scene->general_array = (Vec3 *) malloc(total_vert*sizeof(Vec3));
+
+    unsigned int iter_vert = 0;
+
+    for(int i = 0; i < numb_objs; i++){
+        for(unsigned int j = 0; j < scene->array_objs[i].numb_vertices; j++){
+            scene->general_array[iter_vert + j] = scene->array_objs[i].array[j];
+        }
+        iter_vert += scene->array_objs[i].numb_vertices;
+    }
+
+    scene->total_vert = total_vert;
+
+    
 
     //Deleta todos os arquivos auxiliares criados
     for (int i = 0; i < numb_objs; i++) remove(files[i]);
@@ -1359,10 +1644,26 @@ int TextureFromFile(char *texture_path, int texture_id, Obj3D *obj){
     }
 }
 
-void UpdateObj3D(Obj3D *Obj, GLint model, GLint view, GLint proj, Vec3 transl, Vec3 angles, Vec3 scale){
-    TransformObj3D(Obj, transl, angles, scale, model);
-    glUniformMatrix4fv(view, 1, GL_TRUE, Obj->view_matrix);
-    glUniformMatrix4fv(proj, 1, GL_TRUE, Obj->projection_matrix);
+void UpdateObj3D(Obj3D *Obj, GLint model, GLint view, GLint proj, Vec3 transl, Vec3 angles, Vec3 scale, int mode){
+
+    if(mode == 0){
+        TransformObj3D(Obj, transl, angles, scale, model);
+        // glUniformMatrix4fv(model, 1, GL_TRUE, Obj->model_matrix);
+        glUniformMatrix4fv(view, 1, GL_TRUE, Obj->view_matrix);
+        glUniformMatrix4fv(proj, 1, GL_TRUE, Obj->projection_matrix);
+    }
+    else{
+        Scale(scale.x, scale.y, scale.z, Obj->model_matrix);
+        RotateYaxis(angles.y, Obj->model_matrix);
+        RotateXaxis(angles.x, Obj->model_matrix);
+        RotateZaxis(angles.z, Obj->model_matrix);
+        Translate(transl.x, transl.y, transl.z, Obj->model_matrix);
+
+        glUniformMatrix4fv(model, 1, GL_TRUE, Obj->model_matrix);
+        glUniformMatrix4fv(view, 1, GL_TRUE, Obj->view_matrix);
+        glUniformMatrix4fv(proj, 1, GL_TRUE, Obj->projection_matrix);
+
+    }
 }
 
 
@@ -1378,7 +1679,7 @@ void RenderObj3D(Obj3D Obj, GLint color){
     else{
         glUniform4f(color, Obj.color.r, Obj.color.g, Obj.color.b, Obj.color.w);
         for(int i = 0; i < Obj.numb_vertices/3; i++){
-            glDrawArrays(GL_TRIANGLES, 3*i, 3);
+            glDrawArrays(GL_TRIANGLES, 3*i + Obj.starting_index, 3);
         }
     }
 }
