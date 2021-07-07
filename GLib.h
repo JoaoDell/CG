@@ -39,6 +39,9 @@ typedef struct obj{
 typedef struct texture{
     char *TexturePath;
     GLenum format;
+    GLuint texture_id;
+    GLint has_texture; 
+    Color color;
 } Texture;
 
 typedef struct obj3d{
@@ -56,10 +59,6 @@ typedef struct obj3d{
     GLuint doc_vertex;
     GLuint doc_normals;
     GLuint doc_texture;
-
-    GLuint texture_id;
-    GLint has_texture;
-    Color color;
 
     GLfloat *Reference_Matrix; //Stores the "center of mass" for relative transformations
     GLfloat *model_matrix;
@@ -81,6 +80,8 @@ typedef struct scene{
     int numb_objs;
     Obj3D *array_objs;
     Vec3 *general_array;
+    Vec2 *general_text;
+    Vec3 *general_norm;
     GLuint *starting_indices;
     int *numb_vert;
     GLuint total_vert;
@@ -167,3 +168,5 @@ void RenderObj3D(Obj3D Obj, GLint color);
 void UpdateObj3D(Obj3D *Obj, GLint model, GLint view, GLint proj, Vec3 transl, Vec3 angles, Vec3 scale, int mode);
 
 void flip_surface(SDL_Surface* surface);
+
+void View(vec3 eye, vec3 center, vec3 up, Obj3D *O);

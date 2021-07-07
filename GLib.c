@@ -193,7 +193,7 @@ GLuint GLSLCompile3DLight(){
 
                                     "void main(){\n"
                                         "vec4 texture = texture2D(samplerTexture, out_texture);\n"
-                                        "gl_FragColor = texture;\n"
+                                        "gl_FragColor = color;\n"
                                     "}\n";
 
 
@@ -301,7 +301,7 @@ Obj3D *SpawnObject3D(Vec3 *array, int starting_index, int numb_vertices, Color c
         o->texture = NULL;
         o->starting_index = starting_index;
         o->numb_vertices = numb_vertices;
-        o->color = color;
+        o->texture_info.color = color;
         o->model_matrix = transf_matrix;
 
         return o;
@@ -430,7 +430,7 @@ void DestroyObj3D(Obj3D *object){
     free(object->Reference_Matrix);
     object->Reference_Matrix = NULL;
     free(&object->starting_index);
-    free(&object->color);
+    free(&object->texture_info.color);
     free(&object->numb_vertices);
     // printf("%f, %f, %f\n", object->center_of_mass.x, object->center_of_mass.y, object->center_of_mass.z);
     free(&object->center_of_mass);
@@ -1019,12 +1019,12 @@ Obj3D *Obj3DFromFile(char *vertex_path){
     Obj->Reference_Matrix = NULL;
 
     Obj->angle = 0.0;
-    Obj->color = DefineColor(255.0, 0.0, 0.0, 1.0);
+    Obj->texture_info.color = DefineColor(255.0, 0.0, 0.0, 1.0);
     Vec3 scale; scale.x = 1.0; scale.y = 1.0; scale.z = 1.0;
 
     Obj->scale = scale;
     Obj->starting_index = 0;
-    Obj->has_texture = 0;
+    Obj->texture_info.has_texture = 0;
 
 
 
@@ -1235,12 +1235,12 @@ Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned 
     Obj->Reference_Matrix  = IdentityMatrix();
 
     Obj->angle = 0.0;
-    Obj->color = DefineColor(255.0, 0.0, 0.0, 1.0);
+    Obj->texture_info.color = DefineColor(255.0, 0.0, 0.0, 1.0);
     Vec3 scale; scale.x = 1.0; scale.y = 1.0; scale.z = 1.0;
 
     Obj->scale = scale;
     Obj->starting_index = starting_vertex;
-    Obj->has_texture = 0;
+    Obj->texture_info.has_texture = 0;
 
 
 
@@ -1458,12 +1458,16 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name){
     scene->numb_objs = numb_objs;
 
     scene->general_array = (Vec3 *) malloc(total_vert*sizeof(Vec3));
+    scene->general_text = (Vec2 *) malloc(total_vert*sizeof(Vec2));
+    scene->general_norm = (Vec3 *) malloc(total_vert*sizeof(Vec3));
 
     unsigned int iter_vert = 0;
 
     for(int i = 0; i < numb_objs; i++){
         for(unsigned int j = 0; j < scene->array_objs[i].numb_vertices; j++){
             scene->general_array[iter_vert + j] = scene->array_objs[i].array[j];
+            scene->general_text[iter_vert + j] = scene->array_objs[i].texture[j];
+            scene->general_norm[iter_vert + j] = scene->array_objs[i].normals[j];
         }
         iter_vert += scene->array_objs[i].numb_vertices;
     }
@@ -1603,14 +1607,14 @@ int TextureFromFile(char *texture_path, int texture_id, Obj3D *obj){
     SDL_Surface *s;
     if(SDL_Init(SDL_INIT_VIDEO) < 0){
         printf("SDL could not initialize: %s\n", SDL_GetError());
-        obj->has_texture = 0;
+        obj->texture_info.has_texture = 0;
         return 0;
     }
     else{
         int imgFlags = IMG_INIT_PNG;
         if( !(IMG_Init(imgFlags) & imgFlags)){
             printf("IMG could not initialize: %s\n", IMG_GetError());
-            obj->has_texture = 0;
+            obj->texture_info.has_texture = 0;
             SDL_Quit();
             return 0;
         }
@@ -1618,14 +1622,14 @@ int TextureFromFile(char *texture_path, int texture_id, Obj3D *obj){
             s = IMG_Load(texture_path);
             if(s == NULL){
                 printf("Unable to extract texture!");
-                obj->has_texture = 0;
+                obj->texture_info.has_texture = 0;
                 IMG_Quit();
                 SDL_Quit();
                 return 0;
             }
             else{
                 flip_surface(s); 
-                obj->has_texture = 1;
+                obj->texture_info.has_texture = 1;
 
                 glBindTexture(GL_TEXTURE_2D, texture_id); //Binda as texturas na gpu
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); //Filtros de repeticao: GL_REPEAT -> repeticao simples
@@ -1652,6 +1656,7 @@ void UpdateObj3D(Obj3D *Obj, GLint model, GLint view, GLint proj, Vec3 transl, V
         glUniformMatrix4fv(view, 1, GL_TRUE, Obj->view_matrix);
         glUniformMatrix4fv(proj, 1, GL_TRUE, Obj->projection_matrix);
     }
+
     else{
         Scale(scale.x, scale.y, scale.z, Obj->model_matrix);
         RotateYaxis(angles.y, Obj->model_matrix);
@@ -1669,15 +1674,15 @@ void UpdateObj3D(Obj3D *Obj, GLint model, GLint view, GLint proj, Vec3 transl, V
 
 void RenderObj3D(Obj3D Obj, GLint color){
 
-    if(Obj.has_texture){
-        glBindTexture(GL_TEXTURE_2D, Obj.texture_id);
+    if(Obj.texture_info.has_texture){
+        glBindTexture(GL_TEXTURE_2D, Obj.texture_info.texture_id);
         for(int i = 0; i < Obj.numb_vertices/3; i++){
             glDrawArrays(GL_TRIANGLES, 3*i, 3);
         }
     }
 
     else{
-        glUniform4f(color, Obj.color.r, Obj.color.g, Obj.color.b, Obj.color.w);
+        glUniform4f(color, Obj.texture_info.color.r, Obj.texture_info.color.g, Obj.texture_info.color.b, Obj.texture_info.color.w);
         for(int i = 0; i < Obj.numb_vertices/3; i++){
             glDrawArrays(GL_TRIANGLES, 3*i + Obj.starting_index, 3);
         }
@@ -1705,5 +1710,22 @@ void flip_surface(SDL_Surface* surface){ //Função tirada de https://stackoverf
     
 
     SDL_UnlockSurface(surface);
+}
+
+
+
+void View(vec3 eye, vec3 center, vec3 up, Obj3D *O){
+    vec4 a[4];
+
+    vec3 aux;
+
+    aux[0] = center[0] + eye[0];
+    aux[1] = center[1] + eye[1];
+    aux[2] = center[2] + eye[2];
+
+    glm_lookat(eye, aux, up, a);
+    glm_mat4_transpose(a);
+
+    O->view_matrix = mat_from_glm(a);
 }
 

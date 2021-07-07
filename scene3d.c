@@ -27,108 +27,135 @@ float deltaTime = 0.0f;	//Tempo entre o ultimo frame e o atual. Usado para obter
 float lastFrame = 0.0f; //Tempo do ultimo frame 
 
 
-GLfloat yaw = 0.0;
-GLfloat pitch = 0.0;
 
-int FirstMouse = 1;
-
-
+vec3 eye0    = {10.0, 5.0, 10.0};
 vec3 center0 = {0.0, 0.0, 0.0};
+vec3 up0     = {0.0, 1.0, 0.0};
+vec3 boundaries = {50.0, 50.0, 50.0};
+
+
+float speed = 0.5;
 
 int P = 0;
 
 GLfloat near;
 
+static void eye_check(){
+
+    if(eye0[0] > boundaries[0]) eye0[0] = boundaries[0];
+    else if(eye0[0] < -boundaries[0]) eye0[0] = -boundaries[0];
+    if(eye0[1] > boundaries[1]) eye0[1] = boundaries[1];
+    else if(eye0[1] < -boundaries[1]) eye0[1] = -boundaries[1];
+    if(eye0[2] > boundaries[2]) eye0[2] = boundaries[2];
+    else if(eye0[2] < -boundaries[2]) eye0[2] = -boundaries[2];
+
+}
+
+
 static void key_event(GLFWwindow* window, int key, int scancode, int action, int mods){
     printf("Pressionando tecla %d\n", key);
 
-    if(key == 263 && action == 1) angles.y = -2*M_PI/3600; // seta esquerda
-    else if( key == 262 && action == 1) angles.y = 2*M_PI/3600; // seta direita
-    else if( key == 264 && action == 1) angles.x = -2*M_PI/3600; // seta cima
-    else if( key == 265 && action == 1) angles.x = 2*M_PI/3600; // seta baixo
-    else if(action == 0) {angles.x = 0.0; angles.y = 0.0;}
 
-    if(key == 68 && action == 1) transl.x += 0.01; // d
-    else if(key == 65 && action == 1) transl.x -= 0.01; // a
-    else if(key == 87 && action == 1) transl.y += 0.01; // w
-    else if(key == 83 && action == 1) transl.y -= 0.01; // s
-    else if(action == 0){transl.x = 0.0; transl.y = 0.0;}
+    vec3 aux;
 
-    if(key == 69 && action == 1) transl.z += 0.01; // d
-    else if(key == 81 && action == 1) transl.z -= 0.01; // a
-    else if(action == 0){transl.z = 0.0;}
+    if(key == 68 && (action == 1|| action == 2)) {
+        glm_vec3_cross(center0, up0, aux);
+        glm_vec3_normalize(aux);
 
-    if(key == 69 && action == 1) transl.z += 0.01; // d
-    else if(key == 81 && action == 1) transl.z -= 0.01; // a
-    else if(action == 0){transl.z = 0.0;}
+
+        eye0[0] += speed*aux[0];
+        eye0[1] += speed*aux[1];
+        eye0[2] += speed*aux[2];
+
+
+
+    } // d
+
+    else if(key == 65 && (action == 1|| action == 2)){
+        glm_vec3_cross(center0, up0, aux);
+        glm_vec3_normalize(aux);
+
+        eye0[0] -= speed*aux[0];
+        eye0[1] -= speed*aux[1];
+        eye0[2] -= speed*aux[2];
+
+
+    } // a
+
+    else if(key == 87 && (action == 1|| action == 2)){
+        // glm_vec3_cross(, float *b, aux)
+        eye0[0] += speed*center0[0];
+        eye0[1] += speed*center0[1];
+        eye0[2] += speed*center0[2];
+
+    } // w
+
+    else if(key == 83 && (action == 1|| action == 2)){
+        eye0[0] -= speed*center0[0];
+        eye0[1] -= speed*center0[1];
+        eye0[2] -= speed*center0[2];
+
+
+
+    } // s
 
     if(key == GLFW_KEY_P && action == GLFW_PRESS && P == 0) P = 1;
     else if(key == GLFW_KEY_P && action == GLFW_PRESS && P == 1) P = 0;
 
 }
 
-GLfloat LastX = 960;
-GLfloat LastY = 540;
 
-static void mouse_event(GLFWwindow *janela, double Xpos, double Ypos){ //Não consegui implementar o movimento do mouse
+int FirstMouse = 1;
 
-    GLdouble x_pos;
-    GLdouble y_pos;
-    glfwGetCursorPos(janela, &x_pos, &y_pos);
-    //glfwSetCursorPos(janela, largura/2, altura/2);
+
+int LastX = 960;
+int LastY = 540;
+
+float yaw = -90.0;
+float pitch = 0.0; 
+
+
+
+
+static void mouse_event(GLFWwindow *window, double xpos, double ypos){
+
 
     if(FirstMouse){
-        LastX = Xpos;
-        LastY = Ypos;
+        LastX = xpos;
+        LastY = ypos;
         FirstMouse = 0;
-
     }
 
+    float xoffset = xpos - LastX;
+    float yoffset = LastY - ypos;
+    LastX = xpos;
+    LastY = ypos;
 
-    GLfloat xoffset = x_pos - 960;
-    GLfloat yoffset = 540 - y_pos;
-    LastX = Xpos;
-    LastY = Ypos;
+    float sensitivity = 0.3; 
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
 
-    GLfloat sens = 0.3;
-    xoffset *= sens;    //Calcula o quanto o angulo da camera em X foi alterado 
-    yoffset *= sens;    //Calcula o quanto o angulo da camera em Y foi alterado
+    yaw += xoffset;
+    pitch += yoffset;
 
-    yaw += xoffset;     //Calcula o angulo atual da camera em X
-    pitch += yoffset;   //Calcula o angulo atual da camera em Y
+    if(pitch > 89.9) pitch = 89.9;
+    else if(pitch < -89.9) pitch = -89.9;
 
-    /*
-    if (pitch >= M_PI/2 - M_PI/20 ) pitch = M_PI/2 - M_PI/20;    //Define limites para o angulo da camera em Y
-    if (pitch <= -M_PI/2 + M_PI/20) pitch = -M_PI/2 + M_PI/20;*/
-
-    
-    if (pitch >= 90.0) pitch = 90.0;    //Define limites para o angulo da camera em Y
-    if (pitch <= -90.0) pitch = -90.0;
-
-    //Com base nos angulos da camera em X e Y calcula o ponto para o qual a camera esta olhando
     vec3 front;
-    
-    /*
-    front[0] = (largura/2)*cos(yaw)*cos(pitch);
-    front[1] = (altura/2)*sin(pitch);
-    front[2] = (largura/2)*sin(yaw)*cos(pitch);*/
 
-    
-    front[0] = sin(glm_rad(yaw)) * cos(glm_rad(pitch));
+    front[0] = cos(glm_rad(yaw))*cos(glm_rad(pitch));
     front[1] = sin(glm_rad(pitch));
-    front[2] = cos(glm_rad(yaw)) * cos(glm_rad(pitch));
+    front[2] = sin(glm_rad(yaw))*cos(glm_rad(pitch));
 
     glm_normalize(front);
+
     center0[0] = front[0];
     center0[1] = front[1];
     center0[2] = front[2];
 
-    
+    // glfwSetCursorPos(window, largura/2, altura/2);
 }
 
-void callback_name(int error_code, const char* description){
-    printf("%s\n", description);
-};
 
 /*
 static void mouse_event(GLFWwindow* window, int button, int action, int mods){
@@ -167,7 +194,7 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
 
 
     /*INICIALIZACAO E COMPILACAO DO GLSL*/
-    GLuint program = GLSLCompile3D();
+    GLuint program = GLSLCompile3DLight();
     /*FIM DA INICIALIZACAO E COMPILACAO DO GLSL*/
 
     
@@ -185,9 +212,19 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
 
 
 
-    Vec3 tri[scene->total_vert];
+    Vec3 vert_vert[scene->total_vert];
     for(int j = 0; j < scene->total_vert; j++){    
-        tri[j] = scene->general_array[j];
+        vert_vert[j] = scene->general_array[j];
+    } 
+
+    Vec2 text_vert[scene->total_vert];
+    for(int j = 0; j < scene->total_vert; j++){    
+        text_vert[j] = scene->general_text[j];
+    } 
+
+    Vec3 norm_vert[scene->total_vert];
+    for(int j = 0; j < scene->total_vert; j++){    
+        text_vert[j] = scene->general_text[j];
     } 
     
 
@@ -226,11 +263,6 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     scale0.z = 1.0;
 
 
-    GLfloat up[3] = {0.0, 1.0, 0.0};
-    GLfloat center[3] = {0.0, 5.0, 0.0};
-    GLfloat eye[3] = {10.0, 10.0, 10.0};
-
-
     vec4 a[4];
     vec4 perspec[4];
 
@@ -240,20 +272,28 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     near = 0.1;
 
     
-    glm_lookat(eye, center, up, a);
+    glm_lookat(eye0, center0, up0, a);
     glm_perspective(glm_rad(45.0), largura/altura, near, 100.0, perspec);
     
 
     glm_mat4_transpose(a);
     glm_mat4_transpose(perspec);
 
+    GLuint textures[scene->numb_objs];
     
+    glGenTextures(scene->numb_objs, textures); //Gera um id para a quantidade de texturas n informadas, armazendo-as num vetor de tamanho n
+
 
     for(int i = 0; i < scene->numb_objs; i++){
         scene->array_objs[i].model_matrix      = IdentityMatrix();
         scene->array_objs[i].view_matrix       = mat_from_glm(a);
         scene->array_objs[i].projection_matrix = mat_from_glm(perspec);
         scene->array_objs[i].Reference_Matrix  = CoordMatrix(scene->array_objs[i].center_of_mass);
+
+        //Inicializando as texturas de cada objeto
+        scene->array_objs[i].texture_info.format = GL_RGBA;
+
+        scene->array_objs[i].texture_info.texture_id = textures[i];
     }
 
     
@@ -267,7 +307,7 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     glGenBuffers(2, Buffers);
     glBindBuffer(GL_ARRAY_BUFFER, Buffers[0]);
 
-    glBufferData(GL_ARRAY_BUFFER, sizeof(tri), tri, GL_DYNAMIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(vert_vert), vert_vert, GL_DYNAMIC_DRAW);
 
     GLint loc = glGetAttribLocation(program, "position");
     GLint color = glGetUniformLocation(program, "color");
@@ -276,12 +316,9 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     GLint proj = glGetUniformLocation(program, "projection");
 
     glEnableVertexAttribArray(loc);
-    glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, sizeof(tri[0]), (void*) 0); //Para 3D, substituir a segunda entrada por "3"
+    glVertexAttribPointer(loc, 3, GL_FLOAT, GL_FALSE, sizeof(vert_vert[0]), (void*) 0); //Para 3D, substituir a segunda entrada por "3"
 
     
-    // GLuint texture_id;
-
-    //"cup/textures/Base_color.png"
 
     // texture_id = 0;
     // cubo->texture_id = texture_id;
@@ -290,18 +327,15 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     // TextureFromFile(cubo->texture_info.TexturePath, cubo->texture_id, cubo); //A versão do SDL_image funcionando era a 2.0.1
     // //TextureFromFile("cup/textures/metallic.png", 1, cubo); //A versão do SDL_image funcionando era a 2.0.1
 
-    /*CODIGO MORTO*///Nao sei pra que serve esses 
-    // GLuint textures;
-    
-    // glGenTextures(1, &textures); //Gera um id para a quantidade de texturas n informadas, armazendo-as num vetor de tamanho n
-    // /*CODIGO MORTO*/
-    
-    // glBindBuffer(GL_ARRAY_BUFFER, Buffers[1]);
-    // glBufferData(GL_ARRAY_BUFFER, sizeof(text_vert), text_vert, GL_STATIC_DRAW);
-    // GLint loc_texture = glGetAttribLocation(program, "texture_coord");
 
-    // glEnableVertexAttribArray(loc_texture);
-    // glVertexAttribPointer(loc_texture, 2, GL_FLOAT, GL_FALSE, sizeof(text_vert[0]), (void*) 0);
+
+    
+    glBindBuffer(GL_ARRAY_BUFFER, Buffers[1]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(text_vert), text_vert, GL_STATIC_DRAW);
+    GLint loc_texture = glGetAttribLocation(program, "texture_coord");
+
+    glEnableVertexAttribArray(loc_texture);
+    glVertexAttribPointer(loc_texture, 2, GL_FLOAT, GL_FALSE, sizeof(text_vert[0]), (void*) 0);
 
 
 
@@ -311,10 +345,9 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
 
     glfwSetKeyCallback(janela, key_event);
 
-
-    glfwSetErrorCallback(callback_name);
     
     glfwSetCursorPosCallback(janela, mouse_event);
+    glfwSetCursorPos(janela, largura/2, altura/2);
 
     glfwShowWindow(janela);
     glEnable(GL_DEPTH_TEST); //Adicionar esta linha pra 3D
@@ -347,11 +380,13 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
         cubo->view_matrix = mat_from_glm(a);*/
         //Translate(transl.x, transl.y, transl.z, cubo->view_matrix);
 
-
+        center0[0] += transl.x; center0[1] += transl.y; center0[2] += transl.z;
+        eye_check();
         
         //Renderizando a cena
         for(int i = 0; i < scene->numb_objs; i++){
-            UpdateObj3D(&scene->array_objs[i], model, view, proj, transl, angles, scale, GLOBAL);
+            View(eye0, center0, up0, &scene->array_objs[i]);
+            UpdateObj3D(&scene->array_objs[i], model, view, proj, transl0, angles, scale, GLOBAL);
             RenderObj3D(scene->array_objs[i], color);
         }
         
@@ -362,7 +397,7 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     }
     /*FIM LACO PRINCIPAL*/
 
-    DestroyScene(scene);
+    // DestroyScene(scene);
 
     glfwDestroyWindow(janela);
     glfwTerminate();

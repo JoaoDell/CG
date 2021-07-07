@@ -2,6 +2,8 @@
 #include <SDL2\SDL.h>
 #include <SDL2\SDL_main.h>
 #include <SDL2\SDL_image.h>
+#include <cglm/util.h>
+#include <cglm/vec3.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <GL\glew.h>
@@ -20,111 +22,139 @@ float sx, sy, sz;
 Vec3 transl;
 Vec3 scale;
 Vec3 angles;
-GLfloat largura = 1920;
-GLfloat altura = 1080;
 
-float deltaTime = 0.0f;	//Tempo entre o ultimo frame e o atual. Usado para obter uma movimentacao mais "suave" da camera pelo cenario
-float lastFrame = 0.0f; //Tempo do ultimo frame 
+const GLfloat largura = 1920;
+const GLfloat altura = 1080;
 
-
-GLfloat yaw = 0.0;
-GLfloat pitch = 0.0;
-
-int FirstMouse = 1;
-
-
+vec3 eye0    = {30.0, 10.0, 30.0};
 vec3 center0 = {0.0, 0.0, 0.0};
+vec3 up0     = {0.0, 1.0, 0.0};
+vec3 boundaries = {50.0, 50.0, 50.0};
+
+
+float speed = 1.0;
+
 
 int P = 0;
 
 GLfloat near;
 
+static void eye_check(){
+
+    if(eye0[0] > boundaries[0]) eye0[0] = boundaries[0];
+    else if(eye0[0] < -boundaries[0]) eye0[0] = -boundaries[0];
+    if(eye0[1] > boundaries[1]) eye0[1] = boundaries[1];
+    else if(eye0[1] < -boundaries[1]) eye0[1] = -boundaries[1];
+    if(eye0[2] > boundaries[2]) eye0[2] = boundaries[2];
+    else if(eye0[2] < -boundaries[2]) eye0[2] = -boundaries[2];
+
+}
+
+
 static void key_event(GLFWwindow* window, int key, int scancode, int action, int mods){
     printf("Pressionando tecla %d\n", key);
 
-    if(key == 263 && action == 1) angles.y = -2*M_PI/3600; // seta esquerda
-    else if( key == 262 && action == 1) angles.y = 2*M_PI/3600; // seta direita
-    else if( key == 264 && action == 1) angles.x = -2*M_PI/3600; // seta cima
-    else if( key == 265 && action == 1) angles.x = 2*M_PI/3600; // seta baixo
-    else if(action == 0) {angles.x = 0.0; angles.y = 0.0;}
 
-    if(key == 68 && action == 1) transl.x += 0.01; // d
-    else if(key == 65 && action == 1) transl.x -= 0.01; // a
-    else if(key == 87 && action == 1) transl.y += 0.01; // w
-    else if(key == 83 && action == 1) transl.y -= 0.01; // s
-    else if(action == 0){transl.x = 0.0; transl.y = 0.0;}
+    vec3 aux;
 
-    if(key == 69 && action == 1) transl.z += 0.01; // d
-    else if(key == 81 && action == 1) transl.z -= 0.01; // a
-    else if(action == 0){transl.z = 0.0;}
+    if(key == 68 && (action == 1|| action == 2)) {
+        glm_vec3_cross(center0, up0, aux);
+        glm_vec3_normalize(aux);
 
-    if(key == 69 && action == 1) transl.z += 0.01; // d
-    else if(key == 81 && action == 1) transl.z -= 0.01; // a
-    else if(action == 0){transl.z = 0.0;}
+
+        eye0[0] += speed*aux[0];
+        eye0[1] += speed*aux[1];
+        eye0[2] += speed*aux[2];
+
+
+
+    } // d
+
+    else if(key == 65 && (action == 1|| action == 2)){
+        glm_vec3_cross(center0, up0, aux);
+        glm_vec3_normalize(aux);
+
+        eye0[0] -= speed*aux[0];
+        eye0[1] -= speed*aux[1];
+        eye0[2] -= speed*aux[2];
+
+
+    } // a
+
+    else if(key == 87 && (action == 1|| action == 2)){
+        // glm_vec3_cross(, float *b, aux)
+        eye0[0] += speed*center0[0];
+        eye0[1] += speed*center0[1];
+        eye0[2] += speed*center0[2];
+
+    } // w
+
+    else if(key == 83 && (action == 1|| action == 2)){
+        eye0[0] -= speed*center0[0];
+        eye0[1] -= speed*center0[1];
+        eye0[2] -= speed*center0[2];
+
+
+
+    } // s
 
     if(key == GLFW_KEY_P && action == GLFW_PRESS && P == 0) P = 1;
     else if(key == GLFW_KEY_P && action == GLFW_PRESS && P == 1) P = 0;
 
 }
 
-GLfloat LastX = 960;
-GLfloat LastY = 540;
 
-static void mouse_event(GLFWwindow *janela, double Xpos, double Ypos){ //Não consegui implementar o movimento do mouse
+int FirstMouse = 1;
 
-    GLdouble x_pos;
-    GLdouble y_pos;
-    glfwGetCursorPos(janela, &x_pos, &y_pos);
-    //glfwSetCursorPos(janela, largura/2, altura/2);
+
+int LastX = 960;
+int LastY = 540;
+
+float yaw = -90.0;
+float pitch = 0.0; 
+
+
+
+
+static void mouse_event(GLFWwindow *window, double xpos, double ypos){
+
 
     if(FirstMouse){
-        LastX = Xpos;
-        LastY = Ypos;
+        LastX = xpos;
+        LastY = ypos;
         FirstMouse = 0;
-
     }
 
+    float xoffset = xpos - LastX;
+    float yoffset = LastY - ypos;
+    LastX = xpos;
+    LastY = ypos;
 
-    GLfloat xoffset = x_pos - 960;
-    GLfloat yoffset = 540 - y_pos;
-    LastX = Xpos;
-    LastY = Ypos;
+    float sensitivity = 0.3; 
+    xoffset *= sensitivity;
+    yoffset *= sensitivity;
 
-    GLfloat sens = 0.3;
-    xoffset *= sens;    //Calcula o quanto o angulo da camera em X foi alterado 
-    yoffset *= sens;    //Calcula o quanto o angulo da camera em Y foi alterado
+    yaw += xoffset;
+    pitch += yoffset;
 
-    yaw += xoffset;     //Calcula o angulo atual da camera em X
-    pitch += yoffset;   //Calcula o angulo atual da camera em Y
+    if(pitch > 89.9) pitch = 89.9;
+    else if(pitch < -89.9) pitch = -89.9;
 
-    /*
-    if (pitch >= M_PI/2 - M_PI/20 ) pitch = M_PI/2 - M_PI/20;    //Define limites para o angulo da camera em Y
-    if (pitch <= -M_PI/2 + M_PI/20) pitch = -M_PI/2 + M_PI/20;*/
-
-    
-    if (pitch >= 90.0) pitch = 90.0;    //Define limites para o angulo da camera em Y
-    if (pitch <= -90.0) pitch = -90.0;
-
-    //Com base nos angulos da camera em X e Y calcula o ponto para o qual a camera esta olhando
     vec3 front;
-    
-    /*
-    front[0] = (largura/2)*cos(yaw)*cos(pitch);
-    front[1] = (altura/2)*sin(pitch);
-    front[2] = (largura/2)*sin(yaw)*cos(pitch);*/
 
-    
-    front[0] = sin(glm_rad(yaw)) * cos(glm_rad(pitch));
+    front[0] = cos(glm_rad(yaw))*cos(glm_rad(pitch));
     front[1] = sin(glm_rad(pitch));
-    front[2] = cos(glm_rad(yaw)) * cos(glm_rad(pitch));
+    front[2] = sin(glm_rad(yaw))*cos(glm_rad(pitch));
 
     glm_normalize(front);
+
     center0[0] = front[0];
     center0[1] = front[1];
     center0[2] = front[2];
 
-    
+    // glfwSetCursorPos(window, largura/2, altura/2);
 }
+
 
 /*
 static void mouse_event(GLFWwindow* window, int button, int action, int mods){
@@ -173,7 +203,7 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
 
     /*INICIALIZACAO DOS VERTICES*/
 
-    Obj3D *cubo = Obj3DFromFile("quadra/lojinha.obj");
+    Obj3D *cubo = Obj3DFromFile("quadra/grades.obj");
     cubo->texture_info.format = GL_RGBA;
 
     //Abaixo é a função de renderizar cenas
@@ -237,9 +267,6 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     scale0.z = 1.0;
 
 
-    GLfloat up[3] = {0.0, 1.0, 0.0};
-    GLfloat center[3] = {0.0, 0.0, 0.0};
-    GLfloat eye[3] = {20.0, 20.0, 20.0};
 
 
     vec4 a[4];
@@ -253,8 +280,8 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     
 
     
-    glm_lookat(eye, center, up, a);
-    glm_perspective(glm_rad(45.0), largura/altura, near, 100.0, perspec);
+    glm_lookat(eye0, center0, up0, a);
+    glm_perspective(glm_rad(45.0), largura/altura, near, 1000.0, perspec);
     
 
     glm_mat4_transpose(a);
@@ -265,6 +292,7 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
 
     Translate(-cubo->center_of_mass.x,-cubo->center_of_mass.y, -cubo->center_of_mass.z, cubo->Reference_Matrix);
     cubo->center_of_mass = CenterOfMass(cubo->array, cubo->numb_vertices);
+
     
 
     /*FIM DA INICIALIZACAO DOS VERTICES*/
@@ -293,10 +321,10 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
     //"cup/textures/Base_color.png"
 
     texture_id = 0;
-    cubo->texture_id = texture_id;
-    cubo->texture_info.TexturePath = "quadra/text1.png";
+    cubo->texture_info.texture_id = texture_id;
+    cubo->texture_info.TexturePath = "quadra/textures/grades.png";
     //cubo->texture_info.format = GL_RGB;
-    TextureFromFile(cubo->texture_info.TexturePath, cubo->texture_id, cubo); //A versão do SDL_image funcionando era a 2.0.1
+    TextureFromFile(cubo->texture_info.TexturePath, cubo->texture_info.texture_id, cubo); //A versão do SDL_image funcionando era a 2.0.1
     //TextureFromFile("cup/textures/metallic.png", 1, cubo); //A versão do SDL_image funcionando era a 2.0.1
 
     /*CODIGO MORTO*///Nao sei pra que serve esses 
@@ -323,6 +351,7 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
 
     
     glfwSetCursorPosCallback(janela, mouse_event);
+    glfwSetCursorPos(janela, largura/2, altura/2);
 
 
 
@@ -345,21 +374,13 @@ int WinMain(){ //A função main teve de ser alterada pra WinMain pois conflitav
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
         }
 
-        /*
-        float currentFrame = glfwGetTime();
-        deltaTime = currentFrame - lastFrame;
-        lastFrame = currentFrame;  
-        
-        eye[0] += transl.x; eye[1] += transl.y; eye[2] += transl.z;
         center0[0] += transl.x; center0[1] += transl.y; center0[2] += transl.z;
-        glm_lookat(eye, center0, up, a);
-        glm_mat4_transpose(a);
-        cubo->view_matrix = mat_from_glm(a);*/
-        //Translate(transl.x, transl.y, transl.z, cubo->view_matrix);
+        eye_check();
+        View(eye0, center0, up0, cubo);
 
 
 
-        UpdateObj3D(cubo, model, view, proj, transl, angles, scale);
+        UpdateObj3D(cubo, model, view, proj, transl0, angles, scale, RELATIVE);
 
         RenderObj3D(*cubo, color);
         
