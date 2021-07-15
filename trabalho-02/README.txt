@@ -1,7 +1,3 @@
-João Victor Dell Agli Floriano - 10799783
-Karoliny Oliveira              - 10368020
-Alex Soares Prestes            - 10407962
-
 VERSÕES:
 - SDL2:      2.0.14
 - SDL_image: 2.0.1
