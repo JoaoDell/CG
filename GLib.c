@@ -1,12 +1,12 @@
 #include <SDL2\SDL_surface.h>
-#include <SDL2\SDL.h>
-#include <SDL2\SDL_image.h>
-#include <GL\glew.h>
+#include <SDL2\SDL.h>           //VERSÃO 2.0.14
+#include <SDL2\SDL_image.h>     //VERSÃO 2.0.1
+#include <GL\glew.h>            //VERSÃO 2.10
+#include <cglm/mat4.h>
 #include <float.h>
 #include <stdint.h>
 #define GLFW_INCLUDE_NONE
-#include <GLFW\glfw3.h>
-#include <libpng16\png.h>
+#include <GLFW\glfw3.h>         //VERSÃO 3.3.4
 #include "GLib.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,8 +15,7 @@
 
 
 
-
-
+//FUNÇÃO DE INICIALIZAÇÃO DO GLSL PARA RENDERIZAÇÃO DE VERTICES 2D
 GLuint GLSLCompile(){
 
     /*CONFIGURANDO INICIALIZAÇÃO DO GLSL*/
@@ -88,6 +87,8 @@ GLuint GLSLCompile(){
 
 }
 
+
+//FUNÇÃO DE INICIALIZAÇÃO DO GLSL PARA RENDERIZAÇÃO DE VERTICES 3D
 GLuint GLSLCompile3D(){
 
     /*CONFIGURANDO INICIALIZAÇÃO DO GLSL*/
@@ -163,7 +164,9 @@ GLuint GLSLCompile3D(){
 
 }
 
-GLuint GLSLCompile3DLight(){
+
+//FUNÇÃO DE INICIALIZAÇÃO DO GLSL PARA RENDERIZAÇÃO DE VERTICES 3D E TEXTURAS
+GLuint GLSLCompile3DTexture(){
 
     /*CONFIGURANDO INICIALIZAÇÃO DO GLSL*/
 
@@ -193,7 +196,7 @@ GLuint GLSLCompile3DLight(){
 
                                     "void main(){\n"
                                         "vec4 texture = texture2D(samplerTexture, out_texture);\n"
-                                        "gl_FragColor = color;\n"
+                                        "gl_FragColor = texture;\n"
                                     "}\n";
 
 
@@ -251,8 +254,8 @@ GLuint GLSLCompile3DLight(){
 
     //Diz ao openGL para usar texturas com transparencia
     glHint(GL_LINE_SMOOTH_HINT, GL_DONT_CARE);
-    glEnable( GL_BLEND );
-    glBlendFunc( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_LINE_SMOOTH);
     glEnable(GL_TEXTURE_2D);
 
@@ -261,8 +264,400 @@ GLuint GLSLCompile3DLight(){
 }
 
 
+GLuint GLSLCompile3DLight(){
+
+    /*CONFIGURANDO INICIALIZAÇÃO DO GLSL*/
+
+    const GLchar *vertex_code = "attribute vec3 position;\n"
+                                "attribute vec2 texture_coord;\n"
+                                "attribute vec3 normals;\n"
 
 
+                                "varying vec2 out_texture;\n"
+                                "varying vec3 out_norm;\n"
+                                "varying vec3 out_fragPos;\n"
+
+
+                                "uniform mat4 model;\n"
+                                "uniform mat4 view;\n"
+                                "uniform mat4 projection;\n"
+                                "uniform mat4 lightSpaceMatrix;\n"
+
+
+                                
+                                "void main(){\n"
+                                    "gl_Position = projection*view*model*vec4(position, 1.0);\n"
+                                    "out_texture = vec2(texture_coord);\n"
+                                    "out_fragPos = vec3(model * vec4(position, 1.0));\n"
+                                    "out_norm = vec3(model * vec4(normals, 1.0));\n"
+                                "}\n";
+
+
+    const GLchar *fragment_code =   "uniform vec3 lightPos;\n"
+                                    "uniform vec3 lightColor;\n"
+                                    "uniform vec3 ambientColor;\n"
+
+
+                                    "uniform vec4 color;\n"
+                                    "uniform sampler2D samplerTexture;\n"
+                                    "uniform float Ka;\n"
+                                    "uniform float Kd;\n"
+
+                                    "uniform vec3 viewPos;\n"
+                                    "uniform float Ks;\n"
+                                    "uniform float ns;\n"
+                                    
+
+
+                                    "varying vec2 out_texture;\n"
+                                    "varying vec3 out_norm;\n"
+                                    "varying vec3 out_fragPos;\n"
+                                    "varying vec4 out_lightSpace;\n"
+
+                                    
+                                    "void main(){\n"
+                                        //Recalculo da Luz ambiente pra considerar uma segunda cor, a cor ambiente
+                                        //Média ponderada para dar ênfase ao que mais se quer aparecendo
+                                        "vec3 ambient = Ka*(0.7*ambientColor + 1.3*lightColor)/2;\n" 
+
+
+                                        //Calculo da luz difusa
+                                        "vec3 norm = normalize(out_norm);\n"
+                                        "vec3 lightDir = normalize(lightPos - out_fragPos);\n" //Direção da luz
+                                        "float Diff = max(dot(norm, lightDir), 0.0);\n" //Termo de intensidade de luz em uma superficie
+                                        "vec3 diffuse = Kd*Diff*lightColor;\n"
+
+
+                                        //Cálculo da luz especular
+                                        "vec3 viewDir = normalize(viewPos - out_fragPos);\n" // direcao do observador/camera
+                                        "vec3 reflectDir = normalize(reflect(-lightDir, norm));\n" // direcao da reflexao
+                                        "float spec = pow(max(dot(viewDir, reflectDir), 0.0), ns);\n"
+                                        "vec3 specular = Ks*spec*lightColor;\n"  
+
+
+
+                                        //Calculo Final das três luzes
+                                        "vec4 texture = texture2D(samplerTexture, out_texture);\n"
+                                        "vec4 result = vec4((ambient + diffuse + specular), 1.0)*texture;\n"
+                                        "gl_FragColor = result;\n"
+                                    "}\n";
+
+
+    GLuint program = glCreateProgram();
+    GLuint vertex = glCreateShader(GL_VERTEX_SHADER);
+    GLuint fragment = glCreateShader(GL_FRAGMENT_SHADER);
+
+    glShaderSource(vertex, 1, &vertex_code, NULL);
+    glShaderSource(fragment, 1, &fragment_code, NULL);
+
+    glCompileShader(vertex);
+
+
+    GLint vertex_status = 0;
+    glGetShaderiv(vertex, GL_COMPILE_STATUS, &vertex_status);
+    if(vertex_status == GL_FALSE){
+        
+        //descobrindo o tamanho do log de erro
+        int infoLength = 512;
+        glGetShaderiv(vertex, GL_INFO_LOG_LENGTH, &infoLength);
+
+        //recuperando o log de erro e imprimindo na tela
+        char info[infoLength];
+        glGetShaderInfoLog(vertex, infoLength, NULL, info);
+
+        printf("Erro de compilacao no Vertex Shader.\n");
+        printf("--> %s\n", info);
+    }
+
+    glCompileShader(fragment);
+
+    GLint fragment_status = 0;
+    glGetShaderiv(fragment, GL_COMPILE_STATUS, &fragment_status);
+    if(fragment_status == GL_FALSE){
+
+        //descobrindo o tamanho do log de erro
+        int infoLength = 512;
+        glGetShaderiv(vertex, GL_INFO_LOG_LENGTH, &infoLength);
+
+        //recuperando o log de erro e imprimindo na tela
+        char info[infoLength];
+        glGetShaderInfoLog(vertex, infoLength, NULL, info);
+
+        printf("Erro de compilacao no Fragment Shader.\n");
+        printf("--> %s\n", info);    
+
+    }
+
+
+    glAttachShader(program, vertex);
+    glAttachShader(program, fragment);
+
+    glLinkProgram(program);
+    glUseProgram(program);
+
+    //Diz ao openGL para usar texturas com transparencia
+    glHint(GL_LINE_SMOOTH_HINT, GL_DONT_CARE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_LINE_SMOOTH);
+    glEnable(GL_TEXTURE_2D);
+
+    return(program);
+
+}
+
+GLuint GLSLCompile3DLightShadow(){
+
+    /*CONFIGURANDO INICIALIZAÇÃO DO GLSL*/
+
+    const GLchar *vertex_code = "attribute vec3 position;\n"
+                                "attribute vec2 texture_coord;\n"
+                                "attribute vec3 normals;\n"
+
+                                "varying vec2 out_texture;\n"
+                                "varying vec3 out_norm;\n"
+                                "varying vec3 out_fragPos;\n"
+                                "varying vec4 out_lightSpace;\n"
+
+                                "varying vec3 out_lightPos;\n"
+
+                                "uniform vec3 lightPos;\n"
+
+                                "uniform mat4 model;\n"
+                                "uniform mat4 view;\n"
+                                "uniform mat4 projection;\n"
+                                "uniform mat4 lightSpaceMatrix;\n"
+
+
+
+                                
+                                "void main(){\n"
+                                    "out_texture = vec2(texture_coord);\n"
+                                    "out_fragPos = vec3(model * vec4(position, 1.0));\n"
+                                    "out_norm = vec3(model * vec4(normals, 1.0));\n"
+                                    "out_lightSpace = lightSpaceMatrix * vec4(out_fragPos, 1.0);\n"
+                                    "out_lightPos = lightPos;\n "
+                                    "gl_Position = projection*view*model*vec4(position, 1.0);\n"
+                                "}\n";
+
+
+    const GLchar *fragment_code = 
+                                    "uniform vec3 lightColor;\n"
+                                    "uniform vec3 ambientColor;\n"
+
+
+                                    "uniform vec4 color;\n"
+                                    "uniform sampler2D samplerTexture;\n"
+                                    "uniform sampler2D shadowMap;\n"
+                                    "uniform float Ka;\n"
+                                    "uniform float Kd;\n"
+
+
+                                    "uniform vec3 viewPos;\n"
+                                    "uniform float Ks;\n"
+                                    "uniform float ns;\n"
+
+
+                                    "varying vec2 out_texture;\n"
+                                    "varying vec3 out_norm;\n"
+                                    "varying vec3 out_fragPos;\n"
+                                    "varying vec4 out_lightSpace;\n"
+
+                                    "varying vec3 out_cam;\n"
+                                    "varying vec3 out_lightPos;\n"
+
+
+
+                                    "float shadowCalc(){\n"
+                                        "vec3 Pos = out_lightSpace.xyz/out_lightSpace.w;\n"
+                                        "Pos = Pos*0.5 + 0.5;\n"
+                                        "float closestDepth = texture(shadowMap, Pos.xy).r;\n"
+                                        "float currentDepth = Pos.z;\n"
+                                        "float bias = 0.05;\n"
+                                        "return currentDepth > closestDepth ? 1.0 : 0.0;\n"
+                                    "}\n"
+
+                                    
+                                    "void main(){\n"
+                                        //Recalculo da Luz ambiente pra considerar uma segunda cor, a cor ambiente
+                                        //Média ponderada para dar ênfase ao que mais se quer aparecendo
+                                        "vec3 ambient = Ka*(1.3*ambientColor + 0.7*lightColor)*0.5;\n" 
+
+
+                                        //Calculo da luz difusa
+                                        "vec3 norm = normalize(out_norm);\n"
+                                        "vec3 lightDir = normalize(out_lightPos - out_fragPos);\n" //Direção da luz
+                                        "float Diff = max(dot(norm, lightDir), 0.0);\n" //Termo de intensidade de luz em uma superficie
+                                        "vec3 diffuse = Kd*Diff*lightColor;\n"
+
+
+                                        //Cálculo da luz especular
+                                        "vec3 viewDir = normalize(viewPos - out_fragPos);\n" // direcao do observador/camera
+                                        "vec3 reflectDir = normalize(reflect(-lightDir, norm));\n" // direcao da reflexao
+                                        "float spec = pow(max(dot(viewDir, reflectDir), 0.0), ns);\n"
+                                        "vec3 specular = Ks*spec*lightColor;\n"  
+
+                                        //Calculando sombras
+                                        "float shadow = shadowCalc();\n"
+
+
+                                        //Calculo Final das três luzes
+                                        "vec4 texture = texture2D(samplerTexture, out_texture);\n"
+                                        "vec4 result = vec4((ambient + (1.0 - shadow)*(diffuse + specular)), 1.0)*texture;\n"
+                                        "vec3 Pos = out_lightSpace.xyz/out_lightSpace.w;\n"
+                                        "Pos = Pos*0.5 + 0.5;\n"
+                                        // "float currentDepth = texture(shadowMap, Pos.xy).r;\n"
+                                        "vec4 currentDepth = texture(shadowMap, Pos.xy);\n"
+                                        // "gl_FragColor = vec4(vec3(Pos.z), 1.0);\n"
+                                        "gl_FragColor = result;\n"
+                                        // "gl_FragColor = currentDepth;\n"
+                                        // "gl_FragColor = vec4(vec3(currentDepth.r), 1.0);\n"
+                                    "}\n";
+
+
+    GLuint program = glCreateProgram();
+    GLuint vertex = glCreateShader(GL_VERTEX_SHADER);
+    GLuint fragment = glCreateShader(GL_FRAGMENT_SHADER);
+
+    glShaderSource(vertex, 1, &vertex_code, NULL);
+    glShaderSource(fragment, 1, &fragment_code, NULL);
+
+    glCompileShader(vertex);
+
+
+    GLint vertex_status = 0;
+    glGetShaderiv(vertex, GL_COMPILE_STATUS, &vertex_status);
+    if(vertex_status == GL_FALSE){
+        
+        //descobrindo o tamanho do log de erro
+        int infoLength = 512;
+        glGetShaderiv(vertex, GL_INFO_LOG_LENGTH, &infoLength);
+
+        //recuperando o log de erro e imprimindo na tela
+        char info[infoLength];
+        glGetShaderInfoLog(vertex, infoLength, NULL, info);
+
+        printf("Erro de compilacao no Vertex Shader.\n");
+        printf("--> %s\n", info);
+    }
+
+    glCompileShader(fragment);
+
+    GLint fragment_status = 0;
+    glGetShaderiv(fragment, GL_COMPILE_STATUS, &fragment_status);
+    if(fragment_status == GL_FALSE){
+
+        //descobrindo o tamanho do log de erro
+        int infoLength = 512;
+        glGetShaderiv(vertex, GL_INFO_LOG_LENGTH, &infoLength);
+
+        //recuperando o log de erro e imprimindo na tela
+        char info[infoLength];
+        glGetShaderInfoLog(vertex, infoLength, NULL, info);
+
+        printf("Erro de compilacao no Fragment Shader.\n");
+        printf("--> %s\n", info);    
+
+    }
+
+    glAttachShader(program, vertex);
+    glAttachShader(program, fragment);
+
+    glLinkProgram(program);
+    glUseProgram(program);
+
+    //Diz ao openGL para usar texturas com transparencia
+    glHint(GL_LINE_SMOOTH_HINT, GL_DONT_CARE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_LINE_SMOOTH);
+    glEnable(GL_TEXTURE_2D);
+
+    return(program);
+}
+
+GLuint GLSLCompileQuad(){
+    
+    /*CONFIGURANDO INICIALIZAÇÃO DO GLSL*/
+
+    const GLchar *vertex_code = "attribute vec3 position;\n"
+                                "attribute vec2 tex_coord;\n"
+
+                                "uniform mat4 lightSpaceMatrix;\n"
+                                "varying out_tex;\n"
+
+                                "uniform mat4 model;\n"
+                                "void main(){\n"
+                                    "gl_Position = lightSpaceMatrix*model*vec4(position, 1.0);\n"
+                                    "out_tex = tex_coord;\n"
+
+                                "}\n";
+
+    const GLchar *fragment_code =   "uniform sampler2D shadowMap;\n"
+
+                                    "varying out_tex;\n"
+
+                                    "void main(){\n"
+                                        "float depth = texture(shadowMap, out_tex);\n"
+                                        "gl_FragColor = vec4(vec3(depth), 1.0);\n"
+                                    "}\n";
+
+
+    GLuint program = glCreateProgram();
+    GLuint vertex = glCreateShader(GL_VERTEX_SHADER);
+    GLuint fragment = glCreateShader(GL_FRAGMENT_SHADER);
+
+    glShaderSource(vertex, 1, &vertex_code, NULL);
+    glShaderSource(fragment, 1, &fragment_code, NULL);
+
+    glCompileShader(vertex);
+
+    GLint vertex_status = 0;
+    glGetShaderiv(vertex, GL_COMPILE_STATUS, &vertex_status);
+    if(vertex_status == GL_FALSE){
+        
+        //descobrindo o tamanho do log de erro
+        int infoLength = 512;
+        glGetShaderiv(vertex, GL_INFO_LOG_LENGTH, &infoLength);
+
+        //recuperando o log de erro e imprimindo na tela
+        char info[infoLength];
+        glGetShaderInfoLog(vertex, infoLength, NULL, info);
+
+        printf("Erro de compilacao no Vertex Shader.\n");
+        printf("--> %s\n", info);
+    }
+
+    glCompileShader(fragment);
+
+    GLint fragment_status = 0;
+    glGetShaderiv(fragment, GL_COMPILE_STATUS, &fragment_status);
+    if(fragment_status == GL_FALSE){
+
+        //descobrindo o tamanho do log de erro
+        int infoLength = 512;
+        glGetShaderiv(vertex, GL_INFO_LOG_LENGTH, &infoLength);
+
+        //recuperando o log de erro e imprimindo na tela
+        char info[infoLength];
+        glGetShaderInfoLog(vertex, infoLength, NULL, info);
+
+        printf("Erro de compilacao no Vertex Shader.\n");
+        printf("--> %s\n", info);    
+
+    }
+
+
+    glAttachShader(program, vertex);
+    glAttachShader(program, fragment);
+
+    glLinkProgram(program);
+    glUseProgram(program);
+
+    return(program);
+}
+
+//FUNÇÃO DE MALLOC E INICIALIZAÇÃO DE UM OBJETO 
 Obj *SpawnObject(Vec2 *array, int starting_index, int numb_vertices, Color color, GLfloat *transf_matrix){
 
     //int n = sizeof(array)/sizeof(Vec2);
@@ -284,7 +679,7 @@ Obj *SpawnObject(Vec2 *array, int starting_index, int numb_vertices, Color color
     }
 }
 
-
+//FUNÇÃO DE MALLOC E INICIALIZAÇÃO DE UM OBJETO 3D 
 Obj3D *SpawnObject3D(Vec3 *array, int starting_index, int numb_vertices, Color color, GLfloat *transf_matrix){
 
     //int n = sizeof(array)/sizeof(Vec2);
@@ -309,7 +704,7 @@ Obj3D *SpawnObject3D(Vec3 *array, int starting_index, int numb_vertices, Color c
 }
 
 
-
+//FUNÇÃO DE MALLOC DE INICIALIZAÇÃO DE UMA CENA
 Scene *SpawnScene(int numb_vert, int numb_objs){
     Scene *s;
     s = (Scene *) malloc(numb_vert*sizeof(Vec2) + 2*numb_objs*sizeof(int));
@@ -325,7 +720,7 @@ Scene *SpawnScene(int numb_vert, int numb_objs){
 }
 
 
-
+//FUNÇÃO QUE ADICIONA UM OBJETO A UMA CENA - VERSÃO DESCONTINUADA
 void AppendScene(Obj **obj_array, int numb_objects, Vec2 *scene){
 
     int vert = 0;
@@ -359,6 +754,8 @@ void AppendScene(Obj **obj_array, int numb_objects, Vec2 *scene){
     }
 }
 
+
+//FUNÇÃO QUE ADICIONA UM OBJETO A UMA CENA 3D - VERSÃO DESCONTINUADA
 void AppendScene3D(Obj3D **obj_array, int numb_objects, Vec3 *scene){
 
     int vert = 0;
@@ -390,7 +787,7 @@ void AppendScene3D(Obj3D **obj_array, int numb_objects, Vec3 *scene){
 }
 
 
-
+//FUNÇÃO QUE RETORNA UMA COR NORMALIZADA RECEBENDO UMA COR NO ESPAÇO [0, 255]
 Color DefineColor(float r, float g, float b, float w){
     Color c;
     c.r = r/255;
@@ -401,7 +798,7 @@ Color DefineColor(float r, float g, float b, float w){
 }
 
 
-
+//FUNÇÃO DE DESTRUIÇÃO DE UM OBJETO
 void DestroyObj(Obj *object){
     free(object->array);
     object->array = NULL;
@@ -413,7 +810,7 @@ void DestroyObj(Obj *object){
     free(object);
 }
 
-
+//FUNÇÃO DE DESTRUIÇÃO DE UM OBJETO 3D
 void DestroyObj3D(Obj3D *object){
     free(object->array);
     object->array = NULL;
@@ -440,7 +837,7 @@ void DestroyObj3D(Obj3D *object){
     free(object);
 }
 
-
+//FUNÇÃO DE DESTRUIÇÃO DOS DADOS DE UMA CENA - AINDA BUGADA
 void DestroyScene(Scene *scene){
 
 
@@ -464,7 +861,7 @@ void DestroyScene(Scene *scene){
 }
 
 
-
+//FUNÇÃO QUE CRIA UM CIRCULO NO ESPAÇO 2D
 void SpawnCircle(int numb_vert, Vec2 *array, Vec2 center, float radius){
     float angle = 0.0;
     for (int i = 0; i < numb_vert; i++){
@@ -474,7 +871,7 @@ void SpawnCircle(int numb_vert, Vec2 *array, Vec2 center, float radius){
     }
 }
 
-
+//FUNÇÃO QUE CRIA UM CIRCULO NO ESPAÇO 3D
 void SpawnCircle3D(int numb_vert, Vec3 *array, Vec3 center, float radius, char *plane){
 
     if (strcmp(plane, "xy") == 0 || strcmp(plane, "yx") == 0 ){
@@ -508,7 +905,7 @@ void SpawnCircle3D(int numb_vert, Vec3 *array, Vec3 center, float radius, char *
 
 
 
-
+//FUNÇÃO QUE MULTIPLICA MATRIZES
 void MatrixMultiply(GLfloat *A, GLfloat *B, GLfloat *result){
 
 
@@ -539,7 +936,7 @@ void MatrixMultiply(GLfloat *A, GLfloat *B, GLfloat *result){
 }
 
 
-
+//FUNÇÃO DE TRANSLAÇÃO
 void Translate(GLfloat tx, GLfloat ty, GLfloat tz, GLfloat *Transf_Mat){
 
 
@@ -552,7 +949,7 @@ void Translate(GLfloat tx, GLfloat ty, GLfloat tz, GLfloat *Transf_Mat){
 }
 
 
-
+//FUNÇÃO DE ESCALA 
 void Scale(GLfloat scalex, GLfloat scaley, GLfloat scalez, GLfloat *Transf_Mat){
     
     GLfloat scale_matrix[16] = {scalex,     0.0, 0.0, 0.0,
@@ -564,7 +961,7 @@ void Scale(GLfloat scalex, GLfloat scaley, GLfloat scalez, GLfloat *Transf_Mat){
 }
 
 
-
+//FUNÇÃO DE ROTAÇÃO EM RELAÇÃO AO EIXO Z
 void RotateZaxis(GLfloat angle, GLfloat *Transf_Mat){
 
     GLfloat rotation_matrix[16] = { cos(angle), sin(angle), 0.0, 0.0,
@@ -576,7 +973,7 @@ void RotateZaxis(GLfloat angle, GLfloat *Transf_Mat){
 }
 
 
-
+//FUNÇÃO DE ROTAÇÃO EM RELAÇÃO AO EIXO Y
 void RotateYaxis(GLfloat angle, GLfloat *Transf_Mat){
 
     GLfloat rotation_matrix[16] = { cos(angle), 0.0, sin(angle), 0.0,
@@ -588,7 +985,7 @@ void RotateYaxis(GLfloat angle, GLfloat *Transf_Mat){
 }
 
 
-
+//FUNÇÃO DE ROTAÇÃO EM RELAÇÃO AO EIXO X
 void RotateXaxis(GLfloat angle, GLfloat *Transf_Mat){
 
     GLfloat rotation_matrix[16] = {1.0,         0.0,        0.0, 0.0,
@@ -602,7 +999,7 @@ void RotateXaxis(GLfloat angle, GLfloat *Transf_Mat){
 
 
 
-//useful matrices
+//FUNÇÃO QUE RETORNA UMA MATRIZ IDENTIDADE
 GLfloat *IdentityMatrix(){
     GLfloat *I;
     I = (GLfloat *) malloc(16*sizeof(GLfloat));
@@ -615,7 +1012,7 @@ GLfloat *IdentityMatrix(){
 
 
 
-
+//FUNÇÃO QUE TRADUZ UMA MATRIZ DE COORDENADAS EM UMA MATRIZ ARRAY
 GLfloat *CoordMatrix(Vec3 array){
     GLfloat *C;
     C = (GLfloat *) malloc(16*sizeof(GLfloat));
@@ -626,7 +1023,7 @@ GLfloat *CoordMatrix(Vec3 array){
     return C;
 }
 
-
+//FUNÇÃO QUE TRADUZ A MATRIZ DO GLM EM UMA MATRIZ DE FORMATO ARRAY
 GLfloat *mat_from_glm(vec4 *array){
     GLfloat *C;
     C = (GLfloat *) malloc(16*sizeof(GLfloat));
@@ -638,7 +1035,7 @@ GLfloat *mat_from_glm(vec4 *array){
 }
 
 
-
+//FUNÇÃO QUE CALCULA O CENTRO DE MASSA DE UM ARRAY DE VERTICES
 Vec3 CenterOfMass(Vec3 *array, int size){
 
     Vec3 center;
@@ -660,6 +1057,8 @@ Vec3 CenterOfMass(Vec3 *array, int size){
     return center;
 }
 
+
+//FUNÇÃO QUE ATUALIZA O CENTRO DE MASSA
 Vec3 RelativeCenterOfMass(Vec3 center0, GLfloat *Ref_Matrix){
 
     Vec3 center = center0; 
@@ -670,13 +1069,15 @@ Vec3 RelativeCenterOfMass(Vec3 center0, GLfloat *Ref_Matrix){
     return center;
 }
 
-
+//FUNÇÃO QUE IMPRIME UMA MATRIZ
 void printMatrix(GLfloat *array){
     for(int i = 0; i < 4 ; i++){
             printf("%f %f %f %f\n\n", array[4*i + 0], array[4*i + 1], array[4*i + 2], array[4*i + 3]);
     }
 }
 
+
+//FUNÇÃO QUE ROTACIONA UM OBJETO AO REDOR DO EIXO Y EM RELAÇÃO AO SEU CENTRO DE MASSA
 void RelativeRotateYaxis(GLfloat angle, GLfloat *Transf_Mat, Vec3 point){
 
     Translate(-point.x, -point.y, -point.z, Transf_Mat);
@@ -685,7 +1086,7 @@ void RelativeRotateYaxis(GLfloat angle, GLfloat *Transf_Mat, Vec3 point){
 
 }
 
-
+//FUNÇÃO QUE ROTACIONA UM OBJETO AO REDOR DO EIXO X EM RELAÇÃO AO SEU CENTRO DE MASSA
 void RelativeRotateXaxis(GLfloat angle, GLfloat *Transf_Mat, Vec3 point){
 
     Translate(-point.x, -point.y, -point.z, Transf_Mat);
@@ -694,6 +1095,7 @@ void RelativeRotateXaxis(GLfloat angle, GLfloat *Transf_Mat, Vec3 point){
   
 }
 
+//FUNÇÃO QUE ROTACIONA UM OBJETO AO REDOR DO EIXO Z EM RELAÇÃO AO SEU CENTRO DE MASSA
 void RelativeRotateZaxis(GLfloat angle, GLfloat *Transf_Mat, Vec3 point){
 
     Translate(-point.x, -point.y, -point.z, Transf_Mat);
@@ -702,6 +1104,7 @@ void RelativeRotateZaxis(GLfloat angle, GLfloat *Transf_Mat, Vec3 point){
 
 }
 
+//FUNÇÃO QUE AUMENTA O TAMANHO DE UM OBJETO EM RELAÇÃO AO SEU CENTRO DE MASSA
 void RelativeScale(GLfloat scalex, GLfloat scaley, GLfloat scalez, GLfloat *Transf_Mat, Vec3 point){
 
     Translate(-point.x, -point.y, -point.z, Transf_Mat);
@@ -710,7 +1113,7 @@ void RelativeScale(GLfloat scalex, GLfloat scaley, GLfloat scalez, GLfloat *Tran
 
 }
 
-
+//FUNÇÃO QUE TRANSFORMA A POSIÇÃO DE UM OBJETO EM RELAÇÃO AO SEU CENTRO DE MASSA
 void TransformObj3D(Obj3D *Obj, Vec3 translate, Vec3 angle, Vec3 Scale, GLint model_matrix){
 
     Translate(translate.x, translate.y, translate.z, Obj->Reference_Matrix);
@@ -729,7 +1132,7 @@ void TransformObj3D(Obj3D *Obj, Vec3 translate, Vec3 angle, Vec3 Scale, GLint mo
 
 
 
-
+//FUNÇÃO DE GERAÇÃO DA MATRIZ VIEW - FEITA ANTES DO GLM
 GLfloat *viewMatrix(Vec3 Cam_Pos, Vec3 Target_Pos){
 
     Vec3 Norm;
@@ -806,6 +1209,8 @@ GLfloat *viewMatrix(Vec3 Cam_Pos, Vec3 Target_Pos){
 }
 
 
+
+//FUNÇÃO QUE TRANSFORMA UM VEC3 EM SUA RESPECTIVA MATRIZ EM COORDENADAS HOMOGENEAS
 GLfloat *ArrayFromVec3(Vec3 *array, int size){
     GLfloat *float_array;
     float_array = (GLfloat *) malloc(3*size*sizeof(Vec3));
@@ -822,7 +1227,7 @@ GLfloat *ArrayFromVec3(Vec3 *array, int size){
 
 
 
-
+//FUNÇÃO QUE LÊ UM OBJETO DE UM .OBJ DE MANEIRA GERAL
 Obj3D *Obj3DFromFile(char *vertex_path){
 
     FILE *raw;
@@ -1033,7 +1438,7 @@ Obj3D *Obj3DFromFile(char *vertex_path){
 
 
 
-
+//FUNÇÃO QUE LÊ UM OBJETO DE UM ARQUIVO DE FORMA RELATIVA EM RELAÇÃO AOS INDICES INICIAIS
 Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned int starting_texture, unsigned int starting_normals){
 
     FILE *raw;
@@ -1087,13 +1492,15 @@ Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned 
 
     fclose(raw);
 
-    printf("%d %d %d %d\n", numb_vert, numb_text, numb_norm, numb_fac);
+    // printf("%d %d %d %d\n", numb_vert, numb_text, numb_norm, numb_fac);
     Vec3 verti[numb_vert];
     unsigned int v = 0;
     Vec2 text[numb_text];
     unsigned int t = 0;
     Vec3 norm[numb_norm];
     unsigned int n = 0;
+
+    char *name = (char *) malloc(size*sizeof(char));
 
     Triangle *fac = (Triangle *) malloc(numb_fac*sizeof(Triangle));
     unsigned int f = 0;
@@ -1118,10 +1525,14 @@ Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned 
         
         
         if(check == EOF) break;
+
+        if(strcmp(line, "o") == 0){
+            sscanf(line2, "%s\n", name);
+        }
         
         
 
-        if(strcmp(line, "v") == 0){
+        else if(strcmp(line, "v") == 0){
             sscanf(line2, "%f %f %f\n", &vert.x, &vert.y, &vert.z);
             verti[v] = vert;
             v++;          
@@ -1134,12 +1545,16 @@ Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned 
         else if ( strcmp(line, "vn" ) == 0 ){ //Se for coordenada de normal
             sscanf(line2, "%f %f %f\n", &normal.x, &normal.y, &normal.z);
             norm[n] = normal;
+            n++;
+            // printf("%f %f %f\n", norm[n].x, norm[n].y, norm[n].z);
+
  
         }
         else if ( strcmp(line, "f" ) == 0 ){ //Se for indice das faces
             sscanf(line2, "%d/%d/%d %d/%d/%d %d/%d/%d\n", &face.tri[0], &face.tex[0], &face.nor[0],
                                                           &face.tri[1], &face.tex[1], &face.nor[1], 
                                                           &face.tri[2], &face.tex[2], &face.nor[2]);
+            // printf("%d %d %d\n", face.nor[0], face.nor[1], face.nor[2]);
             fac[f] = face;
             f++;
         }
@@ -1158,9 +1573,6 @@ Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned 
     for(unsigned int i = 0; i < numb_fac; i++){ 
         for(int k = 0; k < 3 ; k++){  
             j = fac[i].tri[k] -1 - starting_vertex;
-            if(&out_vert[3*i + k] == NULL){
-                printf("pqp\n");
-            }     
             // printf("%d\n", j);
             out_vert[3*i + k] = verti[j];
         }
@@ -1177,10 +1589,14 @@ Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned 
     }
 
     j = 0;
+    // printf("%d\n", starting_normals);
     for(unsigned int i = 0; i < numb_fac; i++){
-        for(int k = 0; k < 3 ; k++){
+        for(int k = 0; k < 3 ; k++){  
             j = fac[i].nor[k] -1 - starting_normals;
+            // printf("%d\n", n);
+            // printf("%d %f %f %f\n", j, norm[j].x, norm[j].y, norm[j].z);
             out_norm[3*i + k] = norm[j];
+            // printf("%f %f %f\n", out_norm[3*i + k].x, out_norm[3*i + k].y, out_norm[3*i + k].z);
         }
     }
     
@@ -1217,6 +1633,8 @@ Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned 
         free(out_text);
         return NULL;    
     }
+
+    Obj->name = name;
     
     Obj->array   = out_vert;
     Obj->normals = out_norm;
@@ -1241,6 +1659,7 @@ Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned 
     Obj->scale = scale;
     Obj->starting_index = starting_vertex;
     Obj->texture_info.has_texture = 0;
+    Obj->texture_info.has_inside  = 0;
 
 
 
@@ -1252,7 +1671,7 @@ Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned 
 
 
 
-
+//FUNÇÃO QUE LÊ VÁRIOS OBJETOS DE UM ARQUIVO .OBJ
 Scene *SceneFromFile(char *vertex_file, char *vertex_name){
 
     int size = 500;
@@ -1467,7 +1886,10 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name){
         for(unsigned int j = 0; j < scene->array_objs[i].numb_vertices; j++){
             scene->general_array[iter_vert + j] = scene->array_objs[i].array[j];
             scene->general_text[iter_vert + j] = scene->array_objs[i].texture[j];
+            // printf("%d %f %f %f\n", i, scene->array_objs[i].normals[j].x, scene->array_objs[i].normals[j].y, scene->array_objs[i].normals[j].z);
             scene->general_norm[iter_vert + j] = scene->array_objs[i].normals[j];
+            // printf("%d %f %f %f\n", i, scene->general_norm[iter_vert + j].x, scene->general_norm[iter_vert + j].y, scene->general_norm[iter_vert + j].z);
+
         }
         iter_vert += scene->array_objs[i].numb_vertices;
     }
@@ -1489,7 +1911,7 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name){
     return(scene);
 }
 
-//FUNÇÃO MORTA E LEITURA DE TEXTURAS
+//FUNÇÃO MORTA DE LEITURA DE TEXTURAS
 /*int TextureFromFile(char *file_name, png_uint_32 *w, png_uint_32 *h, png_bytepp row_pointers) {
    png_structp png_ptr;
    png_infop info_ptr;
@@ -1601,8 +2023,8 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name){
 
 }*/
 
-
-int TextureFromFile(char *texture_path, int texture_id, Obj3D *obj){
+//FUNÇÃO PARA CARREGAR IMAGENS EM TEXTURAS ASSOCIADAS A UM OBJETO
+int TextureFromFile(char *texture_path, Obj3D *obj){
 
     SDL_Surface *s;
     if(SDL_Init(SDL_INIT_VIDEO) < 0){
@@ -1628,10 +2050,11 @@ int TextureFromFile(char *texture_path, int texture_id, Obj3D *obj){
                 return 0;
             }
             else{
-                flip_surface(s); 
+                flip_surface(s); //Função para ajustar a imagem, que estava originalmente vindo de ponta cabeça
                 obj->texture_info.has_texture = 1;
 
-                glBindTexture(GL_TEXTURE_2D, texture_id); //Binda as texturas na gpu
+                glGenTextures(1, &obj->texture_info.texture_id);
+                glBindTexture(GL_TEXTURE_2D, obj->texture_info.texture_id); //Binda a textura na gpu
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); //Filtros de repeticao: GL_REPEAT -> repeticao simples
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
                 glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //Filtros de maginificao e minificacao: GL_LINEAR
@@ -1648,16 +2071,82 @@ int TextureFromFile(char *texture_path, int texture_id, Obj3D *obj){
     }
 }
 
+
+
+
+
+//FUNÇÃO PARA RENDERIZAR TEXTURA NÃO ASSOCIADA NECESSARIAMENTE A UM OBJETO
+GLuint LoneTextureFromFile(char *texture_path, GLint format){
+
+    SDL_Surface *s;
+    if(SDL_Init(SDL_INIT_VIDEO) < 0){
+        printf("SDL could not initialize: %s\n", SDL_GetError());
+        return 0;
+    }
+    else{
+        int imgFlags = IMG_INIT_PNG;
+        if( !(IMG_Init(imgFlags) & imgFlags)){
+            printf("IMG could not initialize: %s\n", IMG_GetError());
+            SDL_Quit();
+            return 0;
+        }
+        else{
+            s = IMG_Load(texture_path);
+            if(s == NULL){
+                printf("Unable to extract texture!");
+                IMG_Quit();
+                SDL_Quit();
+                return 0;
+            }
+            else{
+                flip_surface(s); 
+
+                GLuint a = 0;
+                glGenTextures(1, &a);
+                glBindTexture(GL_TEXTURE_2D, a); //Binda a textura na gpu
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT); //Filtros de repeticao: GL_REPEAT -> repeticao simples
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); //Filtros de maginificao e minificacao: GL_LINEAR
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+        
+                glTexImage2D(GL_TEXTURE_2D, 0, format, s->w, s->h, 0, format, GL_UNSIGNED_BYTE, s->pixels);
+
+                SDL_FreeSurface(s);
+                IMG_Quit();
+                SDL_Quit();
+                return a;
+            }
+        }
+    }
+}
+
+
+GLuint GenerateDepthTexture(){
+    const GLuint SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+
+    GLuint DepthMap;
+    glGenTextures(1, &DepthMap);
+    glBindTexture(GL_TEXTURE_2D, DepthMap);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER); 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT, SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+
+    return DepthMap;
+}
+
+//FUNÇÃO PARA MANDAR PARA GPU AS INFORMAÇÕES DAS MATRIZES DE TRANSFORMAÇÕES
 void UpdateObj3D(Obj3D *Obj, GLint model, GLint view, GLint proj, Vec3 transl, Vec3 angles, Vec3 scale, int mode){
 
-    if(mode == 0){
+    if(mode == 0){ //TRANSFORMAÇÕES EM RELAÇÃO AO MUNDO
         TransformObj3D(Obj, transl, angles, scale, model);
-        // glUniformMatrix4fv(model, 1, GL_TRUE, Obj->model_matrix);
+        glUniformMatrix4fv(model, 1, GL_TRUE, Obj->model_matrix);
         glUniformMatrix4fv(view, 1, GL_TRUE, Obj->view_matrix);
         glUniformMatrix4fv(proj, 1, GL_TRUE, Obj->projection_matrix);
     }
 
-    else{
+    else{         //TRANSFORMAÇÕES EM RELAÇÃO AO SEU CENTRO DE MASSA
         Scale(scale.x, scale.y, scale.z, Obj->model_matrix);
         RotateYaxis(angles.y, Obj->model_matrix);
         RotateXaxis(angles.x, Obj->model_matrix);
@@ -1671,17 +2160,25 @@ void UpdateObj3D(Obj3D *Obj, GLint model, GLint view, GLint proj, Vec3 transl, V
     }
 }
 
+//FUNÇÃO PARA MANDAR PARA RENDERIZAR OS VERTICES E TEXTURAS DOS OBJETOS
+void RenderObj3D(Obj3D Obj, GLint color, int is_inside){
 
-void RenderObj3D(Obj3D Obj, GLint color){
-
-    if(Obj.texture_info.has_texture){
-        glBindTexture(GL_TEXTURE_2D, Obj.texture_info.texture_id);
-        for(int i = 0; i < Obj.numb_vertices/3; i++){
-            glDrawArrays(GL_TRIANGLES, 3*i, 3);
+    if(Obj.texture_info.has_texture){//SE O OBJETO TIVER TEXTURA
+        if(Obj.texture_info.has_inside && is_inside){//SE O OBJETO ESTIVER NO INTERIOR E O OBJETO TIVER TEXTURA INTERIOR
+            glBindTexture(GL_TEXTURE_2D, Obj.texture_info.texture_inside_id);
+            for(int i = 0; i < Obj.numb_vertices/3; i++){
+                glDrawArrays(GL_TRIANGLES, 3*i + Obj.starting_index, 3);
+            }
+        }
+        else{                       //RENDERIZAÇÃO NORMAL
+            glBindTexture(GL_TEXTURE_2D, Obj.texture_info.texture_id);
+            for(int i = 0; i < Obj.numb_vertices/3; i++){
+                glDrawArrays(GL_TRIANGLES, 3*i + Obj.starting_index, 3);
+            }
         }
     }
 
-    else{
+    else{                           //SE O OBJETO NÃO TIVER TEXTURA, RENDERIZA COM UAM COR BASE
         glUniform4f(color, Obj.texture_info.color.r, Obj.texture_info.color.g, Obj.texture_info.color.b, Obj.texture_info.color.w);
         for(int i = 0; i < Obj.numb_vertices/3; i++){
             glDrawArrays(GL_TRIANGLES, 3*i + Obj.starting_index, 3);
@@ -1689,7 +2186,49 @@ void RenderObj3D(Obj3D Obj, GLint color){
     }
 }
 
+//FUNÇÃO PARA TESTE DO SHADOWMAP
+void SendLightSpaceMatrix(vec3 lightPos, vec3 lightCenter, vec3 lightUp, float near, float far, GLint loc_lightSpaceMatrix){
+    mat4 lightProjection, lightView, lightSpaceMatrix;
 
+    // glm_perspective(glm_rad(45.0), 1.0, near, far, lightProjection);
+    glm_ortho(-100, 100, -100, 100, near, far, lightProjection);
+    glm_lookat(lightPos, lightCenter, lightUp, lightView);
+
+    glm_mat4_mul(lightProjection, lightView, lightSpaceMatrix);
+    glm_mat4_transpose(lightSpaceMatrix);
+
+    GLfloat *lsm = IdentityMatrix(); 
+
+    lsm = mat_from_glm(lightSpaceMatrix);
+
+    glUniformMatrix4fv(loc_lightSpaceMatrix, 1, GL_TRUE, lsm);
+
+    free(lsm);
+}
+
+//FUNÇÃO DE ENVIO DOS COEFICIENTES DE ILUMINAÇÃO PARA A GPU
+void IlumObj3D(Obj3D Obj, GLint Ka, GLint Kd, GLint Ks, GLint ns, vec3 cameraPos, GLint loc_view_pos, int InsideCheck){
+
+    glUniform3f(loc_view_pos, cameraPos[0], cameraPos[1], cameraPos[2]);
+
+    if(InsideCheck){
+        glUniform1f(Ka, Obj.in_material.Ka);
+        glUniform1f(Kd, Obj.in_material.Kd);
+        glUniform1f(Ks, Obj.in_material.Ks);
+        glUniform1f(ns, Obj.in_material.ns);
+    }
+    else{
+        glUniform1f(Ka, Obj.out_material.Ka);
+        glUniform1f(Kd, Obj.out_material.Kd);
+        glUniform1f(Ks, Obj.out_material.Ks);
+        glUniform1f(ns, Obj.out_material.ns);
+    }
+
+
+
+}
+
+//FUNÇÃO PARA INVERTER VERTICALMENTE UMA IMAGEM
 void flip_surface(SDL_Surface* surface){ //Função tirada de https://stackoverflow.com/questions/65815332/flipping-a-surface-vertically-in-sdl2
     SDL_LockSurface(surface);
     
@@ -1713,9 +2252,10 @@ void flip_surface(SDL_Surface* surface){ //Função tirada de https://stackoverf
 }
 
 
-
-void View(vec3 eye, vec3 center, vec3 up, Obj3D *O){
+//FUNÇÃO PARA ATUALIZAR O STATUS DAS MATRIZES VIEW E PROJECTION
+void ViewUpdate(vec3 eye, vec3 center, vec3 up, float near, float far, float fov, float largura, float altura, Obj3D *O){
     vec4 a[4];
+    vec4 perspec[4];
 
     vec3 aux;
 
@@ -1726,6 +2266,81 @@ void View(vec3 eye, vec3 center, vec3 up, Obj3D *O){
     glm_lookat(eye, aux, up, a);
     glm_mat4_transpose(a);
 
+    glm_perspective(glm_rad(fov), largura/altura, near, far, perspec);
+    glm_mat4_transpose(perspec);
+
     O->view_matrix = mat_from_glm(a);
+    O->projection_matrix = mat_from_glm(perspec);
 }
 
+
+void LightViewUpdate(vec3 eye, vec3 center, vec3 up, float near, float far, float fov, float largura, float altura, Obj3D *O){
+    vec4 a[4];
+    vec4 perspec[4];
+
+    vec3 aux;
+
+    aux[0] = center[0] + eye[0];
+    aux[1] = center[1] + eye[1];
+    aux[2] = center[2] + eye[2];
+
+    glm_lookat(eye, aux, up, a);
+    glm_mat4_transpose(a);
+
+    glm_ortho(-100, 100, -100, 100, near, far, perspec);
+    // glm_perspective(glm_rad(fov), largura/altura, near, far, perspec);
+    glm_mat4_transpose(perspec);
+
+    O->view_matrix = mat_from_glm(a);
+    O->projection_matrix = mat_from_glm(perspec);
+}
+
+
+//FUNÇÃO PARA LIMITAR AS POSIÇÕES DO MOUSE - NÃO FOI USADA
+void updateMousePosition(GLFWwindow *janela, double *xpos, double *ypos, float *boundaries, float largura, float altura){
+
+    glfwGetCursorPos(janela, xpos, ypos);
+
+    if(*xpos > largura/2 + boundaries[0])
+        glfwSetCursorPos(janela, largura/2 + boundaries[0], *ypos);
+    else if(*xpos < largura/2 -boundaries[0])
+        glfwSetCursorPos(janela, largura/2 -boundaries[0], *ypos);
+    
+    if(*ypos > altura/2 + boundaries[1])
+        glfwSetCursorPos(janela, *xpos, altura/2 + boundaries[1]);
+    else if(*ypos < altura/2 -boundaries[1])
+        glfwSetCursorPos(janela, *xpos, altura/2 -boundaries[1]);
+
+}
+
+//FUNÇÃO PARA CHECAR SE A CAMERA ESTÁ DENTRO DE UM OBJETO COM FRONTEIRAS BEM DEFINIDAS
+int Inside_Check(vec3 origin, vec3 boundarie, vec3 position){ //Função para verficiar se a camera esdtá dentro de algum lugar
+    if(position[0] > origin[0] && position[0] < boundarie[0] &&
+       position[1] > origin[1] && position[1] < boundarie[1] &&
+       position[2] > origin[2] && position[2] < boundarie[2])
+            return 1;
+    else return 0;
+}
+
+
+//FUNÇÃO PARA IMPRIMIR OS OBJETOS DE UMA CENA E SEUS NOMES
+void PrintScene(Scene scene){
+    for(int i = 0; i < scene.numb_objs; i++)
+        printf("%s\n", scene.array_objs[i].name);
+}
+
+//FUNÇÃO PARA ATRIBUIR COEFICIENTES DE ILUMINAÇÃO A UM OBJETO
+void DefineObj3DIlum(GLfloat Ka, GLfloat Kd, GLfloat Ks, GLfloat ns, Obj3D *obj){
+    obj->out_material.Ka = Ka;
+    obj->out_material.Kd = Kd;
+    obj->out_material.Ks = Ks;
+    obj->out_material.ns = ns;
+}
+
+//FUNÇÃO PARA ATRIBUIR COEFICIENTES DE ILUMINAÇÃO INTERNA A UM OBJETO
+void DefineObj3DIlumIn(GLfloat Ka, GLfloat Kd, GLfloat Ks, GLfloat ns, Obj3D *obj){
+    obj->in_material.Ka = Ka;
+    obj->in_material.Kd = Kd;
+    obj->in_material.Ks = Ks;
+    obj->in_material.ns = ns;
+}
