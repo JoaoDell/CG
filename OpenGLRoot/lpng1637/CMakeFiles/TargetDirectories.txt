@@ -1,0 +1,17 @@
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/png-fix-itxt.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/pngtest.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/install/local.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/install.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/genfiles.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/png.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/png_static.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/pngvalid.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/pngunknown.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/rebuild_cache.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/pngstest.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/pngimage.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/pngfix.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/test.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/edit_cache.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/list_install_components.dir
+C:/Users/joaov/Desktop/lpng1637/CMakeFiles/install/strip.dir

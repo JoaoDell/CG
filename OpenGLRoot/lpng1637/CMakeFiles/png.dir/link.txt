@@ -1,0 +1,3 @@
+"C:\Program Files\CMake\bin\cmake.exe" -E rm -f CMakeFiles\png.dir/objects.a
+C:\MinGW\bin\ar.exe cr CMakeFiles\png.dir/objects.a @CMakeFiles\png.dir\objects1.rsp
+C:\MinGW\bin\gcc.exe -shared -o libpng16.dll -Wl,--out-implib,libpng16.dll.a -Wl,--major-image-version,16,--minor-image-version,37 -Wl,--whole-archive CMakeFiles\png.dir/objects.a -Wl,--no-whole-archive @CMakeFiles\png.dir\linklibs.rsp

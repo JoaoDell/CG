@@ -1,0 +1,53 @@
+Performing C SOURCE FILE Test HAVE_LD_VERSION_SCRIPT failed with the following output:
+Change Dir: C:/Users/joaov/Desktop/lpng1637/CMakeFiles/CMakeTmp
+
+Run Build Command(s):C:/MinGW/bin/mingw32-make.exe -f Makefile cmTC_6265e/fast && C:/MinGW/bin/mingw32-make.exe  -f CMakeFiles\cmTC_6265e.dir\build.make CMakeFiles/cmTC_6265e.dir/build
+mingw32-make.exe[1]: Entering directory 'C:/Users/joaov/Desktop/lpng1637/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_6265e.dir/src.c.obj
+C:\MinGW\bin\gcc.exe -DHAVE_LD_VERSION_SCRIPT  -Wl,--version-script='C:/Users/joaov/Desktop/lpng1637/conftest.map' -o CMakeFiles\cmTC_6265e.dir\src.c.obj -c C:\Users\joaov\Desktop\lpng1637\CMakeFiles\CMakeTmp\src.c
+Linking C executable cmTC_6265e.exe
+"C:\Program Files\CMake\bin\cmake.exe" -E cmake_link_script CMakeFiles\cmTC_6265e.dir\link.txt --verbose=1
+"C:\Program Files\CMake\bin\cmake.exe" -E rm -f CMakeFiles\cmTC_6265e.dir/objects.a
+C:\MinGW\bin\ar.exe cr CMakeFiles\cmTC_6265e.dir/objects.a @CMakeFiles\cmTC_6265e.dir\objects1.rsp
+C:\MinGW\bin\gcc.exe  -Wl,--version-script='C:/Users/joaov/Desktop/lpng1637/conftest.map' -Wl,--whole-archive CMakeFiles\cmTC_6265e.dir/objects.a -Wl,--no-whole-archive -o cmTC_6265e.exe -Wl,--out-implib,libcmTC_6265e.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\cmTC_6265e.dir\linklibs.rsp
+c:/mingw/bin/../lib/gcc/mingw32/6.3.0/../../../../mingw32/bin/ld.exe: cannot open linker script file 'C:/Users/joaov/Desktop/lpng1637/conftest.map': Invalid argument
+collect2.exe: error: ld returned 1 exit status
+CMakeFiles\cmTC_6265e.dir\build.make:99: recipe for target 'cmTC_6265e.exe' failed
+mingw32-make.exe[1]: *** [cmTC_6265e.exe] Error 1
+mingw32-make.exe[1]: Leaving directory 'C:/Users/joaov/Desktop/lpng1637/CMakeFiles/CMakeTmp'
+Makefile:126: recipe for target 'cmTC_6265e/fast' failed
+mingw32-make.exe: *** [cmTC_6265e/fast] Error 2
+
+
+Source file was:
+void sym(void) {}
+void sym2(void) {}
+int main(void) {return 0;}
+
+Performing C SOURCE FILE Test HAVE_SOLARIS_LD_VERSION_SCRIPT failed with the following output:
+Change Dir: C:/Users/joaov/Desktop/lpng1637/CMakeFiles/CMakeTmp
+
+Run Build Command(s):C:/MinGW/bin/mingw32-make.exe -f Makefile cmTC_efbfa/fast && C:/MinGW/bin/mingw32-make.exe  -f CMakeFiles\cmTC_efbfa.dir\build.make CMakeFiles/cmTC_efbfa.dir/build
+mingw32-make.exe[1]: Entering directory 'C:/Users/joaov/Desktop/lpng1637/CMakeFiles/CMakeTmp'
+Building C object CMakeFiles/cmTC_efbfa.dir/src.c.obj
+C:\MinGW\bin\gcc.exe -DHAVE_SOLARIS_LD_VERSION_SCRIPT  -Wl,-M -Wl,C:/Users/joaov/Desktop/lpng1637/conftest.map -o CMakeFiles\cmTC_efbfa.dir\src.c.obj -c C:\Users\joaov\Desktop\lpng1637\CMakeFiles\CMakeTmp\src.c
+Linking C executable cmTC_efbfa.exe
+"C:\Program Files\CMake\bin\cmake.exe" -E cmake_link_script CMakeFiles\cmTC_efbfa.dir\link.txt --verbose=1
+"C:\Program Files\CMake\bin\cmake.exe" -E rm -f CMakeFiles\cmTC_efbfa.dir/objects.a
+C:\MinGW\bin\ar.exe cr CMakeFiles\cmTC_efbfa.dir/objects.a @CMakeFiles\cmTC_efbfa.dir\objects1.rsp
+C:\MinGW\bin\gcc.exe  -Wl,-M -Wl,C:/Users/joaov/Desktop/lpng1637/conftest.map -Wl,--whole-archive CMakeFiles\cmTC_efbfa.dir/objects.a -Wl,--no-whole-archive -o cmTC_efbfa.exe -Wl,--out-implib,libcmTC_efbfa.dll.a -Wl,--major-image-version,0,--minor-image-version,0 @CMakeFiles\cmTC_efbfa.dir\linklibs.rsp
+c:/mingw/bin/../lib/gcc/mingw32/6.3.0/../../../../mingw32/bin/ld.exe:C:/Users/joaov/Desktop/lpng1637/conftest.map: file format not recognized; treating as linker script
+c:/mingw/bin/../lib/gcc/mingw32/6.3.0/../../../../mingw32/bin/ld.exe:C:/Users/joaov/Desktop/lpng1637/conftest.map:1: syntax error
+collect2.exe: error: ld returned 1 exit status
+CMakeFiles\cmTC_efbfa.dir\build.make:99: recipe for target 'cmTC_efbfa.exe' failed
+mingw32-make.exe[1]: *** [cmTC_efbfa.exe] Error 1
+mingw32-make.exe[1]: Leaving directory 'C:/Users/joaov/Desktop/lpng1637/CMakeFiles/CMakeTmp'
+Makefile:126: recipe for target 'cmTC_efbfa/fast' failed
+mingw32-make.exe: *** [cmTC_efbfa/fast] Error 2
+
+
+Source file was:
+void sym(void) {}
+void sym2(void) {}
+int main(void) {return 0;}
+

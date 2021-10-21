@@ -1,0 +1,13 @@
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/minigzip64.dir
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/zlib.dir
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/zlibstatic.dir
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/example.dir
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/minigzip.dir
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/example64.dir
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/test.dir
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/edit_cache.dir
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/rebuild_cache.dir
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/list_install_components.dir
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/install/local.dir
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/install.dir
+C:/Users/joaov/Desktop/zlib-1.2.11/CMakeFiles/install/strip.dir

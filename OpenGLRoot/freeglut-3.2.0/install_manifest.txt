@@ -1,0 +1,12 @@
+C:/MinGW/lib/libfreeglut.dll.a
+C:/MinGW/bin/libfreeglut.dll
+C:/MinGW/lib/libfreeglut_static.a
+C:/MinGW/include/GL/freeglut.h
+C:/MinGW/include/GL/freeglut_ucall.h
+C:/MinGW/include/GL/freeglut_ext.h
+C:/MinGW/include/GL/freeglut_std.h
+C:/MinGW/lib/pkgconfig/freeglut.pc
+C:/MinGW/lib/cmake/FreeGLUT/FreeGLUTTargets.cmake
+C:/MinGW/lib/cmake/FreeGLUT/FreeGLUTTargets-noconfig.cmake
+C:/MinGW/lib/cmake/FreeGLUT/FreeGLUTConfig.cmake
+C:/MinGW/lib/cmake/FreeGLUT/FreeGLUTConfigVersion.cmake

@@ -1,0 +1,9 @@
+C:/Users/joaov/Desktop/cglm-master/CMakeFiles/cglm.dir
+C:/Users/joaov/Desktop/cglm-master/CMakeFiles/rebuild_cache.dir
+C:/Users/joaov/Desktop/cglm-master/CMakeFiles/package.dir
+C:/Users/joaov/Desktop/cglm-master/CMakeFiles/package_source.dir
+C:/Users/joaov/Desktop/cglm-master/CMakeFiles/install/local.dir
+C:/Users/joaov/Desktop/cglm-master/CMakeFiles/install.dir
+C:/Users/joaov/Desktop/cglm-master/CMakeFiles/edit_cache.dir
+C:/Users/joaov/Desktop/cglm-master/CMakeFiles/list_install_components.dir
+C:/Users/joaov/Desktop/cglm-master/CMakeFiles/install/strip.dir

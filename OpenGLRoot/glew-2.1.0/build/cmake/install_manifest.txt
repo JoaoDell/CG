@@ -1,0 +1,13 @@
+C:/MinGW/lib/libglew32.dll.a
+C:/MinGW/bin/glew32.dll
+C:/MinGW/lib/libglew32.a
+C:/MinGW/bin/glewinfo.exe
+C:/MinGW/bin/visualinfo.exe
+C:/MinGW/lib/pkgconfig/glew.pc
+C:/MinGW/include/GL/wglew.h
+C:/MinGW/include/GL/glew.h
+C:/MinGW/include/GL/glxew.h
+C:/MinGW/lib/cmake/glew/glew-targets.cmake
+C:/MinGW/lib/cmake/glew/glew-targets-release.cmake
+C:/MinGW/lib/cmake/glew/glew-config.cmake
+C:/MinGW/lib/cmake/glew/CopyImportedTargetProperties.cmake
