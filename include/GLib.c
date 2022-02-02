@@ -1,6 +1,13 @@
+
+#ifndef BASIC //define to exclude SDL-dependent functions calls and packages
+#include <SDL2/SDL_config.h>
+#include <SDL2/SDL_stdinc.h>
 #include <SDL2\SDL_surface.h>
 #include <SDL2\SDL.h>           //VERSÃO 2.0.14
 #include <SDL2\SDL_image.h>     //VERSÃO 2.0.1
+#endif
+
+
 #include <GL\glew.h>            //VERSÃO 2.10
 #include <cglm/mat4.h>
 #include <float.h>
@@ -94,7 +101,6 @@ GLuint GLSLCompile3D(){
     /*CONFIGURANDO INICIALIZAÇÃO DO GLSL*/
 
     const GLchar *vertex_code = "attribute vec3 position;\n"
-                                "uniform mat4 mat_transformation;\n"
                                 "uniform mat4 model;\n"
                                 "uniform mat4 view;\n"
                                 "uniform mat4 projection;\n"
@@ -572,6 +578,425 @@ GLuint GLSLCompile3DLightShadow(){
 }
 
 
+GLuint GLSLcreateProgram(){
+    GLuint program = glCreateProgram();
+
+    //Diz ao openGL para usar texturas com transparencia
+    glHint(GL_LINE_SMOOTH_HINT, GL_DONT_CARE);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    glEnable(GL_LINE_SMOOTH);
+    glEnable(GL_TEXTURE_2D);
+
+
+    return(program);
+}
+
+
+void GLSLCompileStandardShader(GLuint program, Shader *shader){
+
+    /*CONFIGURANDO INICIALIZAÇÃO DO GLSL*/
+
+    const GLchar *vertex_code = "attribute vec3 position;\n"
+                                "attribute vec2 texture_coord;\n"
+                                "attribute vec3 normals;\n"
+
+                                "varying vec2 out_texture;\n"
+                                "varying vec3 out_norm;\n"
+                                "varying vec3 out_fragPos;\n"
+                                "varying vec4 out_lightSpace;\n"
+
+                                "varying vec3 out_lightPos;\n"
+
+                                "uniform vec3 lightPos;\n"
+
+                                "uniform mat4 model;\n"
+                                "uniform mat4 view;\n"
+                                "uniform mat4 projection;\n"
+                                "uniform mat4 lightSpaceMatrix;\n"
+
+
+
+                                
+                                "void main(){\n"
+                                    "out_texture = vec2(texture_coord);\n"
+                                    "out_fragPos = vec3(model * vec4(position, 1.0));\n"
+                                    "out_norm = vec3(model * vec4(normals, 1.0));\n"
+                                    "out_lightSpace = lightSpaceMatrix * vec4(out_fragPos, 1.0);\n"
+                                    "out_lightPos = lightPos;\n "
+                                    "gl_Position = projection * view * model * vec4(position, 1.0);\n"
+                                "}\n";
+
+
+    const GLchar *fragment_code = 
+                                    "uniform vec3 lightColor;\n"
+                                    "uniform vec3 ambientColor;\n"
+                                    "uniform int has_texture;\n"
+
+
+                                    "uniform vec4 color;\n"
+                                    "uniform sampler2D samplerTexture;\n"
+                                    "uniform sampler2D shadowMap;\n"
+                                    "uniform float Ka;\n"
+                                    "uniform float Kd;\n"
+
+
+                                    "uniform vec3 viewPos;\n"
+                                    "uniform float Ks;\n"
+                                    "uniform float ns;\n"
+
+
+                                    "varying vec2 out_texture;\n"
+                                    "varying vec3 out_norm;\n"
+                                    "varying vec3 out_fragPos;\n"
+                                    "varying vec4 out_lightSpace;\n"
+
+                                    "varying vec3 out_cam;\n"
+                                    "varying vec3 out_lightPos;\n"
+
+
+
+                                    "float shadowCalc(vec4 out_light){\n"
+                                        "vec3 Pos = out_light.xyz/out_light.w;\n"
+                                        "Pos = Pos*0.5 + 0.5;\n"
+                                        "float closestDepth = texture(shadowMap, Pos.xy).r;\n"
+                                        "float currentDepth = Pos.z;\n"
+                                        "float bias = 0.00005;\n"
+                                        "if(currentDepth > 1.0) return 0.0;\n"
+                                        "else return currentDepth - bias > closestDepth ? 1.0 : 0.0;\n"
+                                    "}\n"
+
+                                    
+                                    "void main(){\n"
+                                        //Recalculo da Luz ambiente pra considerar uma segunda cor, a cor ambiente
+                                        //Média ponderada para dar ênfase ao que mais se quer aparecendo
+                                        "vec3 ambient = Ka*(0.7*ambientColor + 1.3*lightColor)*0.5;\n" 
+
+
+                                        //Calculo da luz difusa
+                                        "vec3 norm = normalize(out_norm);\n"
+                                        "vec3 lightDir = normalize(out_lightPos - out_fragPos);\n" //Direção da luz
+                                        "float Diff = max(dot(norm, lightDir), 0.0);\n" //Termo de intensidade de luz em uma superficie
+                                        "vec3 diffuse = Kd*Diff*lightColor;\n"
+
+
+                                        //Cálculo da luz especular
+                                        "vec3 viewDir = normalize(viewPos - out_fragPos);\n" // direcao do observador/camera
+                                        "vec3 reflectDir = normalize(reflect(-lightDir, norm));\n" // direcao da reflexao
+                                        "float spec = pow(max(dot(viewDir, reflectDir), 0.0), ns);\n"
+                                        "vec3 specular = Ks*spec*lightColor;\n"  
+
+                                        //Calculando sombras
+                                        "float shadow = shadowCalc(out_lightSpace);\n"
+
+
+                                        //Calculo Final das três luzes
+                                        "vec4 result;\n"
+                                        "vec4 texture;\n"
+
+                                        "if(has_texture == 1){\n"
+                                            "texture = texture2D(samplerTexture, out_texture);\n"
+                                            "result = vec4((ambient + (1.0 - shadow)*(diffuse + specular)), 1.0)*texture;\n"
+                                            "gl_FragColor = result;\n"
+                                        "}\n"
+                                        "else{\n"
+                                            "result = vec4((ambient + (1.0 - shadow)*(diffuse + specular)), 1.0);\n"
+                                        "}\n"
+                                        "gl_FragColor = result;\n"
+                                        // "gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);\n"
+                                    "}\n";
+
+
+    shader->vertex = glCreateShader(GL_VERTEX_SHADER);
+    shader->fragment = glCreateShader(GL_FRAGMENT_SHADER);
+
+    glShaderSource(shader->vertex, 1, &vertex_code, NULL);
+    glShaderSource(shader->fragment, 1, &fragment_code, NULL);
+
+    glCompileShader(shader->vertex);
+    glGetShaderiv(shader->vertex, GL_COMPILE_STATUS, &shader->vertex_status);
+    if(shader->vertex_status == GL_FALSE){
+        
+        //descobrindo o tamanho do log de erro
+        int infoLength = 512;
+        glGetShaderiv(shader->vertex, GL_INFO_LOG_LENGTH, &infoLength);
+
+        //recuperando o log de erro e imprimindo na tela
+        char info[infoLength];
+        glGetShaderInfoLog(shader->vertex, infoLength, NULL, info);
+
+        printf("Erro de compilacao no Vertex Shader.\n");
+        printf("--> %s\n", info);
+    }
+
+    glCompileShader(shader->fragment);
+    glGetShaderiv(shader->fragment, GL_COMPILE_STATUS, &shader->fragment_status);
+    if(shader->fragment_status == GL_FALSE){
+
+        //descobrindo o tamanho do log de erro
+        int infoLength = 512;
+        glGetShaderiv(shader->vertex, GL_INFO_LOG_LENGTH, &infoLength);
+
+        //recuperando o log de erro e imprimindo na tela
+        char info[infoLength];
+        glGetShaderInfoLog(shader->vertex, infoLength, NULL, info);
+
+        printf("Erro de compilacao no Fragment Shader.\n");
+        printf("--> %s\n", info);    
+    }
+}
+
+
+
+
+
+void GLSLCompileQuadShader(GLuint program, Shader *shader){
+
+    const GLchar *vert_shader = "attribute vec3 position;\n"
+                                "varying vec3 out_pos;\n"
+                                "void main(){\n"
+                                    "out_pos = position;\n"
+                                    "gl_Position = vec4(position, 1.0);\n"
+                                "}\n";
+
+    const GLchar *frag_shader = "uniform vec4 color;\n"
+                                "varying vec3 out_pos;\n"
+                                "void main(){\n"
+                                    "gl_FragColor = vec4(1.0, 0.0, 0.0, 0.5);\n"
+                                "}\n";
+
+
+    shader->vertex = glCreateShader(GL_VERTEX_SHADER);
+    shader->fragment = glCreateShader(GL_FRAGMENT_SHADER);
+
+    glShaderSource(shader->vertex, 1, &vert_shader, NULL);
+    glShaderSource(shader->fragment, 1, &frag_shader, NULL);
+
+    glCompileShader(shader->vertex);
+
+    glGetShaderiv(shader->vertex, GL_COMPILE_STATUS, &shader->vertex_status);
+    if(shader->vertex_status == GL_FALSE){
+        
+        //descobrindo o tamanho do log de erro
+        int infoLength = 512;
+        glGetShaderiv(shader->vertex, GL_INFO_LOG_LENGTH, &infoLength);
+
+        //recuperando o log de erro e imprimindo na tela
+        char info[infoLength];
+        glGetShaderInfoLog(shader->vertex, infoLength, NULL, info);
+
+        printf("Erro de compilacao no Vertex Shader.\n");
+        printf("--> %s\n", info);
+    }
+
+    glCompileShader(shader->fragment);
+
+    glGetShaderiv(shader->fragment, GL_COMPILE_STATUS, &shader->fragment_status);
+    if(shader->fragment_status == GL_FALSE){
+
+        //descobrindo o tamanho do log de erro
+        int infoLength = 512;
+        glGetShaderiv(shader->fragment, GL_INFO_LOG_LENGTH, &infoLength);
+
+        //recuperando o log de erro e imprimindo na tela
+        char info[infoLength];
+        glGetShaderInfoLog(shader->fragment, infoLength, NULL, info);
+
+        printf("Erro de compilacao no Vertex Shader.\n");
+        printf("--> %s\n", info);    
+
+    }
+}
+
+
+void GLSLCompileDistancesShader(GLuint program, Shader *shader){
+
+    const GLchar *vert_shader = "attribute vec3 position;\n"
+                                "varying vec3 out_pos;\n"
+                                "varying vec3 out_lightPos;\n"
+
+                                "uniform vec3 lightPos;\n"
+
+                                "void main(){\n"
+                                    "out_pos = position;\n"
+                                    "out_lightPos = lightPos;\n"
+                                    "gl_Position = vec4(position, 1.0);\n"
+                                "}\n";
+
+    const GLchar *frag_shader = "uniform vec4 color;\n"
+                                "uniform float radius;\n"
+                                "uniform float blend;\n"
+                                "uniform vec3 point = vec3(0.0, 0.0, 0.0);\n"
+                                "uniform vec3 viewPos;\n"
+                                // "uniform float Ks;\n"
+                                // "uniform float ns;\n"
+                                "uniform vec3 out_norm;\n"
+                                "uniform vec3 lightColor;\n"
+                                // "point.x = 0.0; point.y = 0.0; point.z = 0.0;\n"
+                                
+
+                                "varying vec3 out_pos;\n"
+                                "varying vec3 out_lightPos;\n"
+
+
+                                "void main(){\n"
+
+
+                                    "vec3 norm = normalize(out_norm);\n"
+                                    "vec3 lightDir = normalize(out_lightPos - out_pos);\n"
+
+                                    "float Ks = 10.0;\n"
+                                    "float ns = 10.0;\n"
+
+                                    "vec3 viewDir = normalize(viewPos - out_pos);\n" // direcao do observador/camera
+                                    "vec3 reflectDir = normalize(reflect(-lightDir, norm));\n" // direcao da reflexao
+                                    "float spec = pow(max(dot(viewDir, reflectDir), 0.0), ns);\n"
+                                    "vec3 specular = Ks*spec*lightColor;\n"  
+
+                                    "gl_FragColor = vec4(specular, blend);\n"
+
+                                    // "point = vec3(0.0, 0.0, 0.0);\n"
+                                    // "if(length(out_pos - point) <= 0.3)"
+                                    //     "gl_FragColor = vec4(1.0, 0.0, 0.0, blend);\n"
+                                    // "else gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);\n"
+                                "}\n";
+
+
+    shader->vertex = glCreateShader(GL_VERTEX_SHADER);
+    shader->fragment = glCreateShader(GL_FRAGMENT_SHADER);
+
+    glShaderSource(shader->vertex, 1, &vert_shader, NULL);
+    glShaderSource(shader->fragment, 1, &frag_shader, NULL);
+
+    glCompileShader(shader->vertex);
+
+    glGetShaderiv(shader->vertex, GL_COMPILE_STATUS, &shader->vertex_status);
+    if(shader->vertex_status == GL_FALSE){
+        
+        //descobrindo o tamanho do log de erro
+        int infoLength = 512;
+        glGetShaderiv(shader->vertex, GL_INFO_LOG_LENGTH, &infoLength);
+
+        //recuperando o log de erro e imprimindo na tela
+        char info[infoLength];
+        glGetShaderInfoLog(shader->vertex, infoLength, NULL, info);
+
+        printf("Erro de compilacao no Vertex Shader.\n");
+        printf("--> %s\n", info);
+    }
+
+    glCompileShader(shader->fragment);
+
+    glGetShaderiv(shader->fragment, GL_COMPILE_STATUS, &shader->fragment_status);
+    if(shader->fragment_status == GL_FALSE){
+
+        //descobrindo o tamanho do log de erro
+        int infoLength = 512;
+        glGetShaderiv(shader->fragment, GL_INFO_LOG_LENGTH, &infoLength);
+
+        //recuperando o log de erro e imprimindo na tela
+        char info[infoLength];
+        glGetShaderInfoLog(shader->fragment, infoLength, NULL, info);
+
+        printf("Erro de compilacao no Vertex Shader.\n");
+        printf("--> %s\n", info);    
+
+    }
+}
+
+
+
+// void GLSLCompileShader(GLuint program, Shader *shader, char *vertex_file, char *frag_file){
+
+//     uint32_t MAX_SIZE = LONG_MAX;
+
+//     const GLchar *vert_shader = (const GLchar *) malloc(sizeof(const GLchar)), 
+//     *frag_shader = (const GLchar *) malloc(sizeof(const GLchar));
+
+//     FILE *vfile, *ffile;
+
+//     fopen_s(&vfile, vertex_file, "r");
+
+//     while(!feof(vfile)){
+//         if()
+//     }
+
+
+//     // fread(vert_shader, null, , )
+//     // fgets(vert_shader, MAX_SIZE, vfile);
+    
+//     fclose(vfile);
+
+
+//     fopen_s(&ffile, frag_file, "r");
+//     fgets(frag_shader, MAX_SIZE, ffile);
+//     fclose(ffile);
+    
+
+
+//     // const GLchar *vert_shader = "attribute vec3 position;\n"
+//     //                             "varying vec3 out_pos;\n"
+//     //                             "void main(){\n"
+//     //                                 "out_pos = position;\n"
+//     //                                 "gl_Position = vec4(position, 1.0);\n"
+//     //                             "}\n";
+
+//     // const GLchar *frag_shader = "uniform vec4 color;\n"
+//     //                             "varying vec3 out_pos;\n"
+//     //                             "void main(){\n"
+//     //                                 "gl_FragColor = vec4(1.0, 0.0, 0.0, 0.5);\n"
+//     //                             "}\n";
+
+
+//     shader->vertex = glCreateShader(GL_VERTEX_SHADER);
+//     shader->fragment = glCreateShader(GL_FRAGMENT_SHADER);
+
+//     glShaderSource(shader->vertex, 1, vert_shader, NULL);
+//     glShaderSource(shader->fragment, 1, frag_shader, NULL);
+
+//     glCompileShader(shader->vertex);
+
+//     glGetShaderiv(shader->vertex, GL_COMPILE_STATUS, &shader->vertex_status);
+//     if(shader->vertex_status == GL_FALSE){
+        
+//         //descobrindo o tamanho do log de erro
+//         int infoLength = 512;
+//         glGetShaderiv(shader->vertex, GL_INFO_LOG_LENGTH, &infoLength);
+
+//         //recuperando o log de erro e imprimindo na tela
+//         char info[infoLength];
+//         glGetShaderInfoLog(shader->vertex, infoLength, NULL, info);
+
+//         printf("Erro de compilacao no Vertex Shader.\n");
+//         printf("--> %s\n", info);
+//     }
+
+//     glCompileShader(shader->fragment);
+
+//     glGetShaderiv(shader->fragment, GL_COMPILE_STATUS, &shader->fragment_status);
+//     if(shader->fragment_status == GL_FALSE){
+
+//         //descobrindo o tamanho do log de erro
+//         int infoLength = 512;
+//         glGetShaderiv(shader->fragment, GL_INFO_LOG_LENGTH, &infoLength);
+
+//         //recuperando o log de erro e imprimindo na tela
+//         char info[infoLength];
+//         glGetShaderInfoLog(shader->fragment, infoLength, NULL, info);
+
+//         printf("Erro de compilacao no Vertex Shader.\n");
+//         printf("--> %s\n", info);    
+
+//     }
+// }
+
+
+
+
+
+
+
+
 //FUNÇÃO DE MALLOC E INICIALIZAÇÃO DE UM OBJETO 
 Obj *SpawnObject(Vec2 *array, int starting_index, int numb_vertices, Color color, GLfloat *transf_matrix){
 
@@ -633,6 +1058,11 @@ Scene *SpawnScene(int numb_vert, int numb_objs){
         return s;
     }
 }
+
+
+
+
+
 
 
 //FUNÇÃO QUE ADICIONA UM OBJETO A UMA CENA - VERSÃO DESCONTINUADA
@@ -783,33 +1213,33 @@ void SpawnCircle(int numb_vert, Vec2 *array, Vec2 center, float radius){
 }
 
 //FUNÇÃO QUE CRIA UM CIRCULO NO ESPAÇO 3D
-void SpawnCircle3D(int numb_vert, Vec3 *array, Vec3 center, float radius, char *plane){
+void SpawnCircle3D(int numb_vert, vec3 *array, vec3 center, float radius, char *plane){
 
     if (strcmp(plane, "xy") == 0 || strcmp(plane, "yx") == 0 ){
         float angle = 0.0;
         for (int i = 0; i < numb_vert; i++){
             angle += (2*M_PI)/(numb_vert);
-            array[i].x = radius*cos(angle) + center.x;
-            array[i].y = radius*sin(angle) + center.y;
-            array[i].z = center.z;
+            array[i][0] = radius*cos(angle) + center[0];
+            array[i][1] = radius*sin(angle) + center[1];
+            array[i][2] = center[2];
         }
     }
     else if(strcmp(plane, "xz") == 0 || strcmp(plane, "zx") == 0 ){
         float angle = 0.0;
         for (int i = 0; i < numb_vert; i++){
             angle += (2*M_PI)/(numb_vert);
-            array[i].x = radius*cos(angle) + center.x;
-            array[i].y = center.y;
-            array[i].z = radius*sin(angle) + center.z;
+            array[i][0] = radius*cos(angle) + center[0];
+            array[i][1] = center[1];
+            array[i][2] = radius*sin(angle) + center[2];
         }
     }
     else if(strcmp(plane, "yz") == 0 || strcmp(plane, "zy") == 0 ){
         float angle = 0.0;
         for (int i = 0; i < numb_vert; i++){
             angle += (2*M_PI)/(numb_vert);
-            array[i].x = center.x;
-            array[i].y = radius*cos(angle) + center.y;
-            array[i].z = radius*sin(angle) + center.z;
+            array[i][0] = center[0];
+            array[i][1] = radius*cos(angle) + center[1];
+            array[i][2] = radius*sin(angle) + center[2];
         }
     }
 }
@@ -1267,11 +1697,7 @@ Obj3D *Obj3DFromFile(char *vertex_path){
     unsigned int j = 0;
     for(unsigned int i = 0; i < numb_fac; i++){ 
         for(int k = 0; k < 3 ; k++){  
-            j = fac[i].tri[k] -1;
-            if(&out_vert[3*i + k] == NULL){
-                printf("pqp\n");
-            }     
-
+            j = fac[i].tri[k] -1;  
             out_vert[3*i + k] = verti[j];
         }
     }
@@ -1488,7 +1914,6 @@ Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned 
     for(unsigned int i = 0; i < numb_fac; i++){ 
         for(int k = 0; k < 3 ; k++){  
             j = fac[i].tri[k] -1 - starting_vertex;
-            // printf("%d\n", j);
             out_vert[3*i + k] = verti[j];
         }
     }
@@ -1573,6 +1998,10 @@ Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned 
     Obj->starting_index = starting_vertex;
     Obj->texture_info.has_texture = 0;
     Obj->texture_info.has_inside  = 0;
+
+    Obj->normal_map.has_texture = 0;
+    Obj->normal_map.has_inside = 0;
+    Obj->normal_map.color = DefineColor(0.0, 255.0, 0.0, 1.0);
 
 
 
@@ -1692,6 +2121,7 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name, int width, int height
 
     fclose(raw);
    
+    
 
     //Alocação de memória para a estrutura a ser retornada pela função
     Scene *scene = (Scene *) malloc(sizeof(Scene));
@@ -1741,8 +2171,9 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name, int width, int height
     }
 
 
+    
     scene->array_objs[0] = *Objs3DFromFile(files[0], 0, 0, 0);
-
+    
     vert += scene->array_objs[0].doc_vertex;
     norm += scene->array_objs[0].doc_normals;
     tex += scene->array_objs[0].doc_texture;
@@ -1751,11 +2182,11 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name, int width, int height
     scene->starting_indices[0]  = scene->array_objs[0].starting_index;
 
     total_vert += scene->array_objs[0].numb_vertices;
-
+    
 
     for (int j = 1; j < numb_objs; j++){
  
-
+        
         //Lê os objetos individualmente
         scene->array_objs[j]        = *Objs3DFromFile(files[j], vert, tex, norm);
                                                         
@@ -1787,6 +2218,7 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name, int width, int height
 
     }
 
+    
     scene->numb_objs = numb_objs;
 
     scene->general_array = (Vec3 *) malloc(total_vert*sizeof(Vec3));
@@ -1811,7 +2243,6 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name, int width, int height
     scene->__width = width;
     scene->__height = height;
 
-    
 
     //Deleta todos os arquivos auxiliares criados
     for (int i = 0; i < numb_objs; i++) remove(files[i]);
@@ -1938,6 +2369,39 @@ Scene *SceneFromFile(char *vertex_file, char *vertex_name, int width, int height
 
 }*/
 
+
+Texture *CreateEmptyTexture(int ActiveTexture, int Min_Filter, int Mag_Filter, int Wrap_S, int Wrap_T, GLenum format, int width, int height){
+        
+    GLuint tex;
+
+    glGenTextures(1, &tex);
+    glActiveTexture(ActiveTexture);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, Min_Filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, Mag_Filter);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, Wrap_S); 
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, Wrap_T);
+    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_FLOAT, NULL);
+
+
+    Texture *texture = (Texture *) malloc(sizeof(Texture));
+    texture->TexturePath = NULL;
+    texture->texture_id = tex;
+    texture->ActiveTexture = ActiveTexture;
+    texture->has_inside = 0;
+    texture->texture_inside_id = -1;
+    texture->format = format;
+    texture->color = DefineColor(255.0, 0.0, 0.0, 1.0);
+    texture->width = width;
+    texture->height = height;
+
+    return texture;
+}
+
+
+
+
+#ifndef BASIC
 //FUNÇÃO PARA CARREGAR IMAGENS EM TEXTURAS ASSOCIADAS A UM OBJETO
 int TextureFromFile(char *texture_path, Obj3D *obj){
 
@@ -1987,34 +2451,114 @@ int TextureFromFile(char *texture_path, Obj3D *obj){
 }
 
 
-Texture *CreateEmptyTexture(int ActiveTexture, int Min_Filter, int Mag_Filter, int Wrap_S, int Wrap_T, GLenum format, int width, int height){
+int normalMapFromFile(char *texture_path, Obj3D *obj, int Active_texture_channel){
+
+    SDL_Surface *s;
+    if(SDL_Init(SDL_INIT_VIDEO) < 0){
+        printf("SDL could not initialize: %s\n", SDL_GetError());
+        obj->normal_map.has_texture = 0;
+        return 0;
+    }
+    else{
+        int imgFlags = IMG_INIT_PNG;
+        if( !(IMG_Init(imgFlags) & imgFlags)){
+            printf("IMG could not initialize: %s\n", IMG_GetError());
+            obj->normal_map.has_texture = 0;
+            SDL_Quit();
+            return 0;
+        }
+        else{
+            s = IMG_Load(texture_path);
+            if(s == NULL){
+                printf("Unable to extract texture!");
+                obj->normal_map.has_texture= 0;
+                IMG_Quit();
+                SDL_Quit();
+                return 0;
+            }
+            else{
+                flip_surface(s); //Função para ajustar a imagem, que estava originalmente vindo de ponta cabeça
+                obj->normal_map.has_texture = 1;
+
+                glGenTextures(1, &obj->normal_map.texture_id);
+                glActiveTexture(Active_texture_channel); //Ativando canal de textura do normal map
+                glBindTexture(GL_TEXTURE_2D, obj->normal_map.texture_id); //Binda a textura na gpu
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST); 
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         
-    GLuint tex;
+                glTexImage2D(GL_TEXTURE_2D, 0, obj->normal_map.format, s->w, s->h, 0, obj->normal_map.format, GL_UNSIGNED_BYTE, s->pixels);
 
-    glGenTextures(1, &tex);
-    glActiveTexture(ActiveTexture);
-    glBindTexture(GL_TEXTURE_2D, tex);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, Min_Filter);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, Mag_Filter);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, Wrap_S); 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, Wrap_T);
-    glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_FLOAT, NULL);
+                // glActiveTexture(GL_TEXTURE0); //retornando ao canal de textura principal
+
+                obj->normal_map.ActiveTexture = Active_texture_channel;
+
+                SDL_FreeSurface(s);
+                IMG_Quit();
+                SDL_Quit();
+
+                
+                /*CÁLCULO DOS VETORES TANGENTE E BITANGENTE*/
+                //COM A GRANDE AJUDA DE https://learnopengl.com/Advanced-Lighting/Normal-Mapping
+
+                //CADA ELEMENTO DESSE ARRAY VAI SER UM VETOR TANGENTE E BITANGENTE CORRESPONDENTE À UM TRIANGULO
+                obj->tangent_vec = (Vec3 *) malloc((obj->numb_vertices)*sizeof(Vec3));
+                obj->bitangent_vec = (Vec3 *) malloc((obj->numb_vertices)*sizeof(Vec3));
+
+                for(int i = 0; i < obj->numb_vertices/3; i++){
+
+                    Vec3 edge1, edge2;
+                    Vec2 deltaUV1, deltaUV2;
+
+                    edge1.x = obj->array[3*i + 1].x - obj->array[3*i].x;
+                    edge1.y = obj->array[3*i + 1].y - obj->array[3*i].y;
+                    edge1.z = obj->array[3*i + 1].z - obj->array[3*i].z;
+
+                    edge2.x = obj->array[3*i + 2].x - obj->array[3*i].x;
+                    edge2.y = obj->array[3*i + 2].y - obj->array[3*i].y;
+                    edge2.z = obj->array[3*i + 2].z - obj->array[3*i].z; 
+
+                    deltaUV1.x = obj->texture[3*i + 1].x - obj->texture[3*i].x;
+                    deltaUV1.y = obj->texture[3*i + 1].y - obj->texture[3*i].y;
+
+                    deltaUV2.x = obj->texture[3*i + 2].x - obj->texture[3*i].x;
+                    deltaUV2.y = obj->texture[3*i + 2].y - obj->texture[3*i].y;
+
+                    float f = 1.0/(deltaUV1.x * deltaUV2.y - deltaUV2.x * deltaUV1.y);
+
+                    
+
+                    obj->tangent_vec[3*i + 0].x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+                    obj->tangent_vec[3*i + 0].y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+                    obj->tangent_vec[3*i + 0].z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+                    obj->tangent_vec[3*i + 1].x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+                    obj->tangent_vec[3*i + 1].y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+                    obj->tangent_vec[3*i + 1].z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+                    obj->tangent_vec[3*i + 2].x = f * (deltaUV2.y * edge1.x - deltaUV1.y * edge2.x);
+                    obj->tangent_vec[3*i + 2].y = f * (deltaUV2.y * edge1.y - deltaUV1.y * edge2.y);
+                    obj->tangent_vec[3*i + 2].z = f * (deltaUV2.y * edge1.z - deltaUV1.y * edge2.z);
+
+                    obj->bitangent_vec[3*i + 0].x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+                    obj->bitangent_vec[3*i + 0].y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+                    obj->bitangent_vec[3*i + 0].z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);  
+                    obj->bitangent_vec[3*i + 1].x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+                    obj->bitangent_vec[3*i + 1].y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+                    obj->bitangent_vec[3*i + 1].z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);   
+                    obj->bitangent_vec[3*i + 2].x = f * (-deltaUV2.x * edge1.x + deltaUV1.x * edge2.x);
+                    obj->bitangent_vec[3*i + 2].y = f * (-deltaUV2.x * edge1.y + deltaUV1.x * edge2.y);
+                    obj->bitangent_vec[3*i + 2].z = f * (-deltaUV2.x * edge1.z + deltaUV1.x * edge2.z);                     
+                }
+
+                /*TÉRMINO DO CÁLCULO DOS VETORES TANGENTE E BITANGENTE*/
 
 
-    Texture *texture = (Texture *) malloc(sizeof(Texture));
-    texture->TexturePath = NULL;
-    texture->texture_id = tex;
-    texture->ActiveTexture = ActiveTexture;
-    texture->has_inside = 0;
-    texture->texture_inside_id = -1;
-    texture->format = format;
-    texture->color = DefineColor(255.0, 0.0, 0.0, 1.0);
-    texture->width = width;
-    texture->height = height;
 
-    return texture;
+                return 1;
+            }
+        }
+    }
 }
-
 
 
 
@@ -2066,6 +2610,7 @@ GLuint LoneTextureFromFile(char *texture_path, GLint format){
 
 
 
+
 //FUNÇÃO PARA INVERTER VERTICALMENTE UMA IMAGEM
 void flip_surface(SDL_Surface* surface){ //Função tirada de https://stackoverflow.com/questions/65815332/flipping-a-surface-vertically-in-sdl2
     SDL_LockSurface(surface);
@@ -2088,6 +2633,7 @@ void flip_surface(SDL_Surface* surface){ //Função tirada de https://stackoverf
 
     SDL_UnlockSurface(surface);
 }
+#endif
 
 
 
@@ -2140,12 +2686,13 @@ void UpdateObj3D(Obj3D *Obj, Camera cam, GLint model, GLint view, GLint proj, Ve
 
 void StaticUpdateObj3D(Obj3D *Obj, Camera cam, GLint model, GLint view, GLint proj){
     glUniformMatrix4fv(model, 1, GL_TRUE, Obj->model_matrix);
-    glUniformMatrix4fv(view, 1, GL_TRUE, cam.__view);
-    glUniformMatrix4fv(proj, 1, GL_TRUE, cam.__projection);
+    glUniformMatrix4fv(view, 1, GL_TRUE, camView(&cam));
+    glUniformMatrix4fv(proj, 1, GL_TRUE, camProj(&cam));
 }
 
 //FUNÇÃO PARA MANDAR PARA RENDERIZAR OS VERTICES E TEXTURAS DOS OBJETOS
 void RenderObj3D(Obj3D Obj, GLint color, int is_inside){
+
 
     if(Obj.texture_info.has_texture){//SE O OBJETO TIVER TEXTURA
         if(Obj.texture_info.has_inside && is_inside){//SE O OBJETO ESTIVER NO INTERIOR E O OBJETO TIVER TEXTURA INTERIOR
@@ -2198,6 +2745,7 @@ void IlumObj3D(Obj3D Obj, GLint Ka, GLint Kd, GLint Ks, GLint ns, vec3 cameraPos
 
 //FUNÇÃO PARA ATUALIZAR O STATUS DAS MATRIZES VIEW E PROJECTION
 void ViewUpdate(vec3 eye, vec3 center, vec3 up, float near, float far, float fov, float largura, float altura, Camera *cam){
+    
     vec3 aux;
 
     aux[0] = center[0] + eye[0];
@@ -2250,6 +2798,9 @@ void getLocationLightConstants(GLuint program, GLuint *Ka, GLuint *Kd, GLuint *K
     *ns = glGetUniformLocation(program, "ns"); 
 }
 
+
+void shaderReorderScene(Scene *scene){
+}
 
 //FUNÇÃO PARA ATRIBUIR COEFICIENTES DE ILUMINAÇÃO A UM OBJETO
 void DefineObj3DIlum(GLfloat Ka, GLfloat Kd, GLfloat Ks, GLfloat ns, Obj3D *obj){
@@ -2378,6 +2929,13 @@ float *LightSpaceMatrix(Camera lightCam){
     return lsm;
 }
 
+float *camView(Camera *cam){
+    return cam->__view;
+}
+
+float *camProj(Camera *cam){
+    return cam->__projection;
+}
 
 void SetLightParams(DirectLight *light, vec3 light_pos, Color color, Camera lightCam, Texture DepthMap, GLuint DepthMapFBO){
     for(int i = 0; i < 3; i++)
@@ -2466,4 +3024,58 @@ void getLocationLightParams(GLuint program, GLuint *loc_lightPos, GLuint *loc_li
     *loc_lightPos = glGetUniformLocation(program, "lightPos");
     *loc_lightColor = glGetUniformLocation(program, "lightColor");
     *loc_lightSpaceMatrix = glGetUniformLocation(program, "lightSpaceMatrix");
+}
+
+
+
+
+void GLSLattachShader(GLuint program, Shader shader){
+    glAttachShader(program, shader.vertex);
+    glAttachShader(program, shader.fragment);
+
+    glLinkProgram(program);
+}
+
+
+
+void debugScene(Scene s){
+
+    printf("vertices:\n");
+    for(int i = 0; i < s.total_vert; i++){
+        printf("%0.3f, %0.3f, %0.3f\n", s.general_array[i].x, s.general_array[i].y, s.general_array[i].z);
+    }
+
+    printf("\n");
+
+    printf("texture vertices:\n");
+    for(int i = 0; i < s.total_vert; i++){
+        printf("%0.3f, %0.3f\n", s.general_text[i].x, s.general_text[i].y);
+    }
+
+    printf("\n");
+
+    printf("normals:\n");
+    for(int i = 0; i < s.total_vert; i++){
+        printf("%0.3f, %0.3f, %0.3f\n", s.general_norm[i].x, s.general_norm[i].y, s.general_norm[i].z);
+    }
+}
+
+
+void Quad(vec3 *quad){
+
+
+    quad[0][0] = -1.0; quad[0][1] = -1.0; quad[0][2] = 0.0;
+    quad[1][0] = -1.0; quad[1][1] = 1.0; quad[1][2] = 0.0;
+    quad[2][0] = 1.0; quad[2][1] = -1.0; quad[2][2] = 0.0;
+    quad[3][0] = 1.0; quad[3][1] = 1.0; quad[3][2] = 0.0;
+
+}
+
+void blendlim(float *blend){
+    if(*blend < 0.0) *blend = 0.0;
+    else if(*blend > 1.0) *blend = 1.0;
+}
+
+void defvec3(float *array, float x, float y, float z){
+    array[0] = x; array[1] = y; array[2] = z;
 }

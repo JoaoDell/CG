@@ -1,9 +1,17 @@
+#ifndef BASIC
 #include <SDL2\SDL_surface.h>
 #include <SDL2\SDL.h>           //VERSÃO 2.0.14
+#include <SDL2\SDL_main.h>  
 #include <SDL2\SDL_image.h>     //VERSÃO 2.0.1
+#endif
+
+
 #include <GL\glew.h>            //VERSÃO 2.10
 #define GLFW_INCLUDE_NONE
 #include <GLFW\glfw3.h>         //VERSÃO 3.3.4
+#include <cglm/cam.h>
+#include <cglm/mat4.h>
+#include <cglm/project.h>
 #include <cglm\cglm.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -56,11 +64,24 @@ typedef struct texture{
     int height;
 } Texture;
 
+typedef struct shader{
+    int shaderType;
+
+    GLuint vertex;
+    GLint vertex_status;
+
+    GLuint fragment;
+    GLint fragment_status;
+
+} Shader;
+
+
 typedef struct material{
     GLfloat Ka;
     GLfloat Kd;
     GLfloat Ks;
     GLfloat ns;
+    Shader shader;
 }Material;
 
 typedef struct obj3d{
@@ -87,6 +108,9 @@ typedef struct obj3d{
     GLfloat *model_matrix;
 
     Texture texture_info;
+    Texture normal_map;
+    Vec3 *tangent_vec;
+    Vec3 *bitangent_vec;
 
     Material out_material;
     Material in_material;
@@ -97,12 +121,6 @@ typedef struct triangle{
     int tex[3];
     int nor[3];
 }Triangle;
-
-
-
-
-
-
 
 
 typedef struct camera{
@@ -179,6 +197,7 @@ typedef struct scene{
     GLuint loc_proj;
     GLuint Ka, Kd, Ks, ns;
     GLuint loc_color;
+    Shader *shaders;
 
     Camera sceneCam;
 
@@ -200,6 +219,16 @@ GLuint GLSLCompile3DTexture();
 GLuint GLSLCompile3DLight();
 
 GLuint GLSLCompile3DLightShadow();
+
+GLuint GLSLcreateProgram();
+
+void GLSLCompileStandardShader(GLuint program, Shader *shader);
+
+void GLSLCompileQuadShader(GLuint program, Shader *shader);
+
+void GLSLCompileDistancesShader(GLuint program, Shader *shader);
+
+void GLSLattachShader(GLuint program, Shader shader);
 /*SHADER COMPILING FUNCTIONS*/
 
 
@@ -227,7 +256,7 @@ void DestroyObj3D(Obj3D *object);
 
 void SpawnCircle(int numb_vert, Vec2 *array, Vec2 center, float radius);
 
-void SpawnCircle3D(int numb_vert, Vec3 *array, Vec3 center, float radius, char *c);
+void SpawnCircle3D(int numb_vert, vec3 *array, vec3 center, float radius, char *c);
 /*DATA STRUCTURE ALLOCATION FUNCTIONS*/
 
 
@@ -292,13 +321,18 @@ Obj3D *Objs3DFromFile(char *vertex_path, unsigned int starting_vertex, unsigned 
 
 Scene *SceneFromFile(char *vertex_path, char *vertex_name, int width, int height);
 
-int TextureFromFile(char *texture_path,  Obj3D *obj);
 
 Texture *CreateEmptyTexture(int ActiveTexture, int Min_Filter, int Mag_Filter, int Wrap_S, int Wrap_T, GLenum format, int width, int height);
 
-GLuint LoneTextureFromFile(char *texture_path, GLint format);
+#ifndef BASIC  
+int TextureFromFile(char *texture_path,  Obj3D *obj);
 
+int normalMapFromFile(char *texture_path, Obj3D *obj, int Active_texture_channel);
+
+GLuint LoneTextureFromFile(char *texture_path, GLint format);
+ 
 void flip_surface(SDL_Surface* surface);
+#endif
 /*FILE READING FUNCTIONS*/
 
 
@@ -341,6 +375,8 @@ void setSceneCam(Scene *scene, Camera cam);
 void getLocationView3D(GLuint program, GLuint *loc_model, GLuint *loc_view, GLuint *loc_proj);
 
 void getLocationLightConstants(GLuint program, GLuint *Ka, GLuint *Kd, GLuint *Ks, GLuint *ns);
+
+void shaderReorderScene(Scene *scene);
 /*SCENE DEALING FUNCTIONS*/
 
 
@@ -370,6 +406,10 @@ float *projFromCam(Camera cam);
 /*LIGHT DEALING FUNCTIONS*/
 float *LightSpaceMatrix(Camera cam);
 
+float *camView(Camera *cam);
+
+float *camProj(Camera *cam);
+
 void SetLightParams(DirectLight *light, vec3 light_pos, Color color, Camera lightCam, Texture DepthMap, GLuint DepthMapFBO);
 
 GLuint GetDirectDepthMapFBO(DirectLight light);
@@ -392,6 +432,20 @@ void getLocationLightParams(GLuint program, GLuint *loc_lightPos, GLuint *loc_li
 
 
 
-/*NEW/EXPERIMENTAL FUNCTIONS*/
+/*SHADER DEALING FUNCTIONS*/
 
+
+/*END OF SHADER DEALING FUNCTIONS*/
+
+
+
+
+/*NEW/EXPERIMENTAL FUNCTIONS*/
+void debugScene(Scene s);
+
+void Quad(vec3 *quad);
+
+void blendlim(float *blend);
+
+void defvec3(float *array, float x, float y, float z);
 /*NEW/EXPERIMENTAL FUNCTIONS*/
