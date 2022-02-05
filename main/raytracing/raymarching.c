@@ -38,6 +38,7 @@ void GLSLCompileRMShader(Shader *shader){
 
                                 "struct light {\n"
                                     "vec3 lightPos;\n"
+                                    "vec3 lightCenter;\n"
                                     "vec3 lightColor;\n"
                                     "vec3 ambientColor;\n"
                                 "};\n"
@@ -45,6 +46,7 @@ void GLSLCompileRMShader(Shader *shader){
                                 "const int MAX_STEPS = 255;\n"
                                 "const float MAX_DIST = 500.0;\n"
                                 "const float EPSILON = 0.001;\n"
+                                "const float K = 10.0;\n"
                                 
                                 "uniform vec2 res;\n"
                                 "uniform float time;\n"
@@ -64,7 +66,7 @@ void GLSLCompileRMShader(Shader *shader){
                                 //SDF FUNCTIONS
                                 "float sphereSDF(vec3 p, sphere sp){\n"
                                     "float a = 3.0;\n"
-                                    "return length(p - sp.pos) - sp.radius + sin(a*p.x)*sin(a*p.y)*sin(a*p.z) / 4;\n"
+                                    "return length(p - sp.pos) - sp.radius + sin(a*p.x)*sin(a*p.y)*sin(a*p.z)/4;\n"
                                 "}\n"
 
                                 // "float sphereSDF(vec3 p, sphere sp){\n"
@@ -104,10 +106,10 @@ void GLSLCompileRMShader(Shader *shader){
                                     "return max(d1, d2);\n"
                                 "}\n"
 
-                                "float sceneSDF(vec3 p, sphere sp, cube cu){\n"
+                                "float sceneSDF(vec3 p, sphere sp, float y){\n"
                                     "float d1 = sphereSDF(p, sp);\n"
-                                    "float d2 = cubeSDF(p, cu);\n"
-                                    "return intersectSDF(d1, d2);\n"
+                                    "float d2 = planeSDF(p, y);\n"
+                                    "return unionSDF(d1, d2);\n"
                                 "}\n"
 
 
@@ -142,10 +144,10 @@ void GLSLCompileRMShader(Shader *shader){
                                 "}\n"
 
 
-                                "vec3 sceneNormals(vec3 p, sphere sp, cube cu){\n"
-                                    "return normalize(vec3( sceneSDF(vec3(p.x + EPSILON, p.y, p.z), sp, cu) - sceneSDF(vec3(p.x - EPSILON, p.y, p.z), sp, cu),\n"
-                                                           "sceneSDF(vec3(p.x, p.y + EPSILON, p.z), sp, cu) - sceneSDF(vec3(p.x, p.y - EPSILON, p.z), sp, cu),\n"
-                                                           "sceneSDF(vec3(p.x, p.y, p.z + EPSILON), sp, cu) - sceneSDF(vec3(p.x, p.y, p.z - EPSILON), sp, cu)));\n" 
+                                "vec3 sceneNormals(vec3 p, sphere sp, float y){\n"
+                                    "return normalize(vec3( sceneSDF(vec3(p.x + EPSILON, p.y, p.z), sp, y) - sceneSDF(vec3(p.x - EPSILON, p.y, p.z), sp, y),\n"
+                                                           "sceneSDF(vec3(p.x, p.y + EPSILON, p.z), sp, y) - sceneSDF(vec3(p.x, p.y - EPSILON, p.z), sp, y),\n"
+                                                           "sceneSDF(vec3(p.x, p.y, p.z + EPSILON), sp, y) - sceneSDF(vec3(p.x, p.y, p.z - EPSILON), sp, y)));\n" 
                                 "}\n"
 
 
@@ -160,10 +162,62 @@ void GLSLCompileRMShader(Shader *shader){
                                     "else return dark;\n"
                                 "}\n"
 
-                                "vec3 sphereTexture(vec3 p, sphere sp){\n"
-                                    "float r = abs(sphereSDF(p, sp) - sphereSDF(sp.pos, sp));\n"
-                                    "return vec3(1.0/r, 1.0/r, 1.0/r);\n"
+                                "vec3 borderTexture(vec3 p, vec3 camPos, vec3 objPos){\n"
+                                    "vec3 point = normalize(p - objPos);\n"
+                                    "vec3 dir = normalize(objPos - camPos);\n"
+                                    "float param = 2.0;\n"
+                                    "return clamp(abs(param*(1 + dot(point, dir))), 0.0, 1.0)*vec3(1.0, 1.0, 1.0) + vec3(0.15, 0.0, 0.0);\n"
                                 "}\n"
+
+                                "vec3 borderDerivativeTexture(vec3 camPos, vec3 objPos, vec3 norm){\n"
+                                    "vec3 dir = normalize(objPos - camPos);\n"
+                                    "float param = 2.0;\n"
+                                    "return clamp(abs(param*(1 + dot(norm, dir))), 0.0, 1.0)*vec3(1.0, 1.0, 1.0) + vec3(0.15, 0.0, 0.0);\n"
+                                "}\n"
+
+
+                                //MATH FUNCTIONS
+                                "mat4 viewMatrix(vec3 eye, vec3 center, vec3 up){\n"
+	                                "vec3 f = normalize(center - eye);\n"
+	                                "vec3 s = normalize(cross(f, up));\n"
+	                                "vec3 u = normalize(cross(s, f));\n"
+	                                "return mat4(\n"
+		                                "vec4(s, 0.0),\n"
+		                                "vec4(u, 0.0),\n"
+                                        "vec4(-f, 0.0),\n"
+                                        "vec4(0.0, 0.0, 0.0, 1)\n"
+                                    ");\n"
+                                "}\n"
+
+                                "vec3 rayDirection(float FOV, vec2 resolution, vec2 fragCoord){\n"
+                                    "vec2 uv = (fragCoord)*resolution/ 2 / resolution.y;\n"
+                                    "float z = resolution.y / tan( radians(FOV) / 2.0 ) / resolution.y;\n"
+                                    "return normalize(vec3(uv, -z));\n"
+                                "}\n"
+
+
+
+
+
+
+                                //SHADOW CALC
+                                "float shadowCalc(vec3 eye, vec3 rayDir, float start, float k, sphere sp, float y){\n"
+                                    "float ds = start;\n"
+                                    "float dist = 0.0;\n"
+                                    "float result = 1.0;\n"
+                                    "vec3 p;\n"
+                                    "for(int i = 0; i < MAX_STEPS; i++){\n"
+                                        "p = eye + ds*rayDir;\n"
+                                        "dist = sceneSDF(p, sp, y);\n"
+                                        "result = min(result, k*dist/ds);\n"
+                                        "ds += dist;\n"
+                                        "if(result < EPSILON || ds > MAX_DIST) return clamp(result, 0.0, 1.0);\n"
+
+                                    "}\n"
+                                    "return clamp(result, 0.0, 1.0);\n"
+                                "}\n"
+
+
 
 
 
@@ -192,7 +246,7 @@ void GLSLCompileRMShader(Shader *shader){
                                     "float spec = pow(max(dot(viewDir, reflectDir), 0.0), ns);\n"
                                     "vec3 specular = Ks*spec*li.lightColor;\n"
 
-                                    "return (ambient + diffuse + specular)*sp.color;\n"
+                                    "return (ambient + diffuse + specular)*sp.color*borderDerivativeTexture(camPos, sp.pos, norm);\n"
                                     /*PHONG*/
 
                                 "}\n"
@@ -219,7 +273,7 @@ void GLSLCompileRMShader(Shader *shader){
                                     "float spec = pow(max(dot(viewDir, reflectDir), 0.0), ns);\n"
                                     "vec3 specular = Ks*spec*li.lightColor;\n"
 
-                                    "return (ambient + diffuse + specular)*cu.color;\n"
+                                    "return (ambient + diffuse + specular)*cu.color*borderTexture(p, camPos, cu.pos);\n"
                                     /*PHONG*/
 
                                 "}\n"
@@ -282,11 +336,11 @@ void GLSLCompileRMShader(Shader *shader){
                                 "}\n"
 
 
-                                "vec3 scenePhong(vec3 p, vec3 camPos, sphere sp, cube cu, light li){\n"
-                                    "float Ka = 1.0, Kd = 1.0, Ks = 1.0, ns = 0.6;\n"
+                                "vec3 scenePhong(vec3 p, vec3 camPos, sphere sp, float y, light li){\n"
+                                    "float Ka = 1.0, Kd = 10.0, Ks = 10.0, ns = 0.6;\n"
 
                                     //Cálculo das normals
-                                    "vec3 norm = sceneNormals(p, sp, cu);\n"
+                                    "vec3 norm = sceneNormals(p, sp, y);\n"
 
                                     /*PHONG*/
                                     "vec3 ambient = Ka*(0.7*li.ambientColor + 1.3*li.lightColor) / 2.0;\n" 
@@ -304,7 +358,8 @@ void GLSLCompileRMShader(Shader *shader){
                                     "float spec = pow(max(dot(viewDir, reflectDir), 0.0), ns);\n"
                                     "vec3 specular = Ks*spec*li.lightColor;\n"
 
-                                    "return (ambient + diffuse + specular);\n"
+                                    
+                                    "return (ambient + (diffuse + specular));\n"
                                     /*PHONG*/
 
                                 "}\n"
@@ -393,16 +448,16 @@ void GLSLCompileRMShader(Shader *shader){
 
                                 "}\n"
 
-                                "vec3 rayMarchingScene(float start, vec3 eye, vec3 rayDir, cube cu, sphere sp, light li, vec3 color){\n"
+                                "vec3 rayMarchingScene(float start, vec3 eye, vec3 rayDir, float y, sphere sp, light li, vec3 color){\n"
                                     "float ds = start;\n" //quantidade a se andar ao longo da dire;áo do raio
                                     "vec3 p;\n"
                                     "for(int i = 0; i < MAX_STEPS; i++){\n"
                                         "p = eye + ds * rayDir;\n" //iterando pelo raio
 
                                         
-                                        "float dist = sceneSDF(p, sp, cu);\n"
+                                        "float dist = sceneSDF(p, sp, y);\n"
                                         "if(dist < EPSILON)\n"
-                                            "return scenePhong(p, eye, sp, cu, li)*sp.color;\n"
+                                            "return scenePhong(p, eye, sp, y, li)*sp.color;\n"
 
                                         "ds += dist;\n" //se não atingiu nada, incrementa o passo com a distancia
 
@@ -412,30 +467,6 @@ void GLSLCompileRMShader(Shader *shader){
                                     "return color;\n"
 
                                 "}\n"
-
-
-
-
-
-                                //MATH FUNCTIONS
-                                "mat4 viewMatrix(vec3 eye, vec3 center, vec3 up){\n"
-	                                "vec3 f = normalize(center - eye);\n"
-	                                "vec3 s = normalize(cross(f, up));\n"
-	                                "vec3 u = normalize(cross(s, f));\n"
-	                                "return mat4(\n"
-		                                "vec4(s, 0.0),\n"
-		                                "vec4(u, 0.0),\n"
-                                        "vec4(-f, 0.0),\n"
-                                        "vec4(0.0, 0.0, 0.0, 1)\n"
-                                    ");\n"
-                                "}\n"
-
-                                "vec3 rayDirection(float FOV, vec2 resolution, vec2 fragCoord){\n"
-                                    "vec2 uv = (fragCoord)*resolution/ 2 / resolution.y;\n"
-                                    "float z = resolution.y / tan( radians(FOV) / 2.0 ) / resolution.y;\n"
-                                    "return normalize(vec3(uv, -z));\n"
-                                "}\n"
-
                                 
 
 
@@ -447,17 +478,18 @@ void GLSLCompileRMShader(Shader *shader){
 
                                     // "l.lightPos = vec3(5*sin(time), 2.0, -10*cos(time));\n"
                                     "l.lightPos = vec3(-10.0, 10.0, -30.0);\n"
+                                    "l.lightCenter = vec3(0.0, 0.0, 0.0);\n"
                                     "l.lightColor = vec3(1.0, 0.8, 0.0);\n"
                                     "l.ambientColor = vec3(0.9, 0.7, 1.0) - vec3(0.0);\n"
-
+                                    "mat4 lview = viewMatrix(l.lightPos, l.lightCenter, vec3(0.0, 1.0, 0.0));\n"
 
                                     "s.pos = vec3(0.0, 4.0, 0.0);\n"
                                     "s.radius = 3.0*abs(cos(time));\n"
-                                    "s.color = vec3(0.3, 0.2, 0.9);\n"
+                                    "s.color = vec3(1.0, 0.6, 0.5);\n"
 
                                     "c.pos = vec3(0.0, 2.0, 0.0);\n"
                                     "c.size = 2.0;\n"
-                                    "c.color = vec3(1.0, 0.6, 0.);\n"
+                                    "c.color = vec3(1.0, 0.6, 0.6);\n"
 
                                     "rayDir = (view0 * vec4(rayDir, 0.0)).xyz;\n"
                                 
@@ -466,7 +498,7 @@ void GLSLCompileRMShader(Shader *shader){
                                     "color = rayMarchingPlane(0.0, camPos, rayDir, 2.0, l, color);\n" 
                                     // "color = rayMarchingCube(1.0, camPos, rayDir, c, l, color);\n"     
                                     "color = rayMarchingSphere(0.0, camPos, rayDir, s, l, color);\n"
-                                    // "color = rayMarchingScene(0.0, camPos, rayDir, c, s, l, color);\n"                                   
+                                    // "color = rayMarchingScene(0.0, camPos, rayDir, 0.0, s, l, color);\n"                                   
                                     "gl_FragColor = vec4(color, 1.0);\n"
                                 "}\n";
 
